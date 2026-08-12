@@ -18,7 +18,11 @@ The goal is not to produce a secure wallet, but to validate the idea on a flash 
 
 ## Why the first version failed
 
-The original placeholder ROM had a header but not a true booting cartridge program. The Game Boy expects a valid cartridge header plus executable boot bytes. The new generator includes a minimal boot loop so the ROM is much more likely to initialize correctly on real hardware.
+The original placeholder ROM had a header but not a true booting cartridge program. The Game Boy expects a valid cartridge header plus executable boot bytes. The new generator includes a small boot routine that initializes the stack, turns on the LCD, and writes a simple BTC title to VRAM so the ROM behaves more like a real game boot-up.
+
+## Current target
+
+This is still a prototype, but it is a better cartridge test image than the placeholder. The next step is to replace the raw boot routine with a fuller title screen and menu built in actual Game Boy assembly once a proper assembler toolchain is available.
 
 ## Important warning
 

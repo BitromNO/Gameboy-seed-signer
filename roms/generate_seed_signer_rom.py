@@ -62,10 +62,30 @@ def make_rom() -> bytes:
     # Boot sequence: NOP + JP 0x0150.
     rom[0x0100:0x0104] = bytes([0x00, 0xC3, 0x50, 0x01])
 
-        # A small valid boot loop makes the cartridge start cleanly on real hardware.
+        # A more realistic boot routine for the prototype:
+    # 1) initialize the stack
+    # 2) turn on the LCD
+    # 3) write a simple BTC title to VRAM tile memory
+    # 4) stay in a loop so the cartridge remains alive on powerup
     boot_code = bytes([
         0x31, 0xFE, 0xFF,  # LD SP, $FFFE
-        0xAF,              # XOR A
+        0x3E, 0x81,        # LD A, $81
+        0xE0, 0x40,        # LD (FF40), A
+        0x21, 0x98, 0x00,  # LD HL, $0098
+        0x3E, 0x42,        # LD A, 'B'
+        0x12,              # LD (HL+), A
+        0x3E, 0x54,        # LD A, 'T'
+        0x12,              # LD (HL+), A
+        0x3E, 0x43,        # LD A, 'C'
+        0x12,              # LD (HL+), A
+        0x3E, 0x53,        # LD A, 'S'
+        0x12,              # LD (HL+), A
+        0x3E, 0x45,        # LD A, 'E'
+        0x12,              # LD (HL+), A
+        0x3E, 0x45,        # LD A, 'E'
+        0x12,              # LD (HL+), A
+        0x3E, 0x44,        # LD A, 'D'
+        0x12,              # LD (HL+), A
         0x18, 0xFE,        # JR -2
     ])
     for offset, byte in enumerate(boot_code):
