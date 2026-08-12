@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""Create a simple Game Boy ROM test image for the seed-signer concept.
+
+This creates a valid-looking .gb ROM header and a small boot payload that can be
+loaded by a flash cartridge for testing. It is intended for fun and hardware
+validation only, not for production wallet use.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+TITLE = "BTCSEED"
+OUTPUT = Path(__file__).with_name("gb_seed_signer_test.gb")
+
+
+def checksum(data: bytes) -> int:
+    total = 0
+    for b in data[:0x14E]:
+        total = (total + b) & 0xFFFF
+    return total & 0xFFFF
+
+
+def make_rom() -> bytes:
+    rom = bytearray(32 * 1024)
+
+    # Minimal Game Boy boot stub.
+    # This is a tiny ROM image that can be recognized by carts and flash loaders.
+    rom[0x0000:0x0100] = bytes([
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ])
+
+    # Boot sequence: NOP; JP 0x0150
+    rom[0x0100:0x0104] = bytes([0x00, 0xC3, 0x50, 0x01])
+
+    # Game Boy ROM header
+    rom[0x0104:0x0104 + len(TITLE)] = TITLE.encode("ascii")
+    rom[0x0134:0x0143] = TITLE.encode("ascii")
+    rom[0x0143] = 0x00  # null terminator for title if shorter
+
+    rom[0x0144] = 0x00  # no CGB support
+    rom[0x0145] = 0x00  # new licensee code
+    rom[0x0146] = 0x00  # SGB flag
+    rom[0x0147] = 0x00  # cartridge type: ROM only
+    rom[0x0148] = 0x00  # 32 KB ROM
+    rom[0x0149] = 0x00  # no RAM
+    rom[0x014A] = 0x00  # Japanese
+    rom[0x014B] = 0x00  # old licensee code
+    rom[0x014C] = 0x00  # mask version
+
+    # Fill a small boot payload, enough to show the cartridge is custom.
+    payload = (
+        "BTC SEED SIGNER\n"
+        "TESTNET DEMO\n"
+        "FOR FUN ONLY\n"
+        "MARIO MENU TEST\n"
+        "LOAD ROM FOR TESTING\n"
+    ).encode("ascii")
+    for idx, byte in enumerate(payload):
+        if 0x0150 + idx < len(rom):
+            rom[0x0150 + idx] = byte
+
+    # Header checksum field (as used by some loaders)
+    rom[0x14D] = 0x00
+    rom[0x14E] = 0x00
+    rom[0x14F] = 0x00
+
+    # The ROM checksum is a simple 16-bit sum over the ROM excluding the checksum bytes.
+    # This is not a full GB validation but keeps the file recognizable.
+    checksum_value = checksum(bytes(rom))
+    rom[0x14D] = (checksum_value >> 8) & 0xFF
+    rom[0x14E] = checksum_value & 0xFF
+
+    return bytes(rom)
+
+
+def main() -> None:
+    rom = make_rom()
+    OUTPUT.write_bytes(rom)
+    print(f"Created {OUTPUT} ({len(rom)} bytes)")
+    print("Title:", TITLE)
+    print("This is a prototype ROM test image for cartridge validation only.")
+
+
+if __name__ == "__main__":
+    main()
