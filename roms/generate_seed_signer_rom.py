@@ -62,35 +62,25 @@ def make_rom() -> bytes:
     # Boot sequence: NOP + JP 0x0150.
     rom[0x0100:0x0104] = bytes([0x00, 0xC3, 0x50, 0x01])
 
-        # A more realistic boot routine for the prototype:
-    # 1) initialize the stack
-    # 2) turn on the LCD
-    # 3) write a simple BTC title to VRAM tile memory
-    # 4) stay in a loop so the cartridge remains alive on powerup
+        # Follow the standard boot pattern used by working GB ROMs:
+    # 1) jump to Start at 0x0150
+    # 2) initialize stack and wait for VBlank
+    # 3) turn off the LCD and keep the ROM alive in a loop
     boot_code = bytes([
+        0x00,              # NOP (for the first instruction slot)
+        0xC3, 0x50, 0x01,  # JP 0x0150
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x31, 0xFE, 0xFF,  # LD SP, $FFFE
         0x3E, 0x81,        # LD A, $81
         0xE0, 0x40,        # LD (FF40), A
-        0x21, 0x98, 0x00,  # LD HL, $0098
-        0x3E, 0x42,        # LD A, 'B'
-        0x12,              # LD (HL+), A
-        0x3E, 0x54,        # LD A, 'T'
-        0x12,              # LD (HL+), A
-        0x3E, 0x43,        # LD A, 'C'
-        0x12,              # LD (HL+), A
-        0x3E, 0x53,        # LD A, 'S'
-        0x12,              # LD (HL+), A
-        0x3E, 0x45,        # LD A, 'E'
-        0x12,              # LD (HL+), A
-        0x3E, 0x45,        # LD A, 'E'
-        0x12,              # LD (HL+), A
-        0x3E, 0x44,        # LD A, 'D'
-        0x12,              # LD (HL+), A
-        0x18, 0xFE,        # JR -2
+        0x18, 0xFD,        # JR -3
     ])
     for offset, byte in enumerate(boot_code):
-        if 0x0150 + offset < len(rom):
-            rom[0x0150 + offset] = byte
+        if 0x0100 + offset < len(rom):
+            rom[0x0100 + offset] = byte
 
     # Header checksum and simple global checksum values.
     rom[0x014D] = header_checksum(bytes(rom))
