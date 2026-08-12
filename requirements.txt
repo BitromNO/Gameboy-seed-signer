@@ -1,0 +1,4 @@
+mnemonic>=0.21
+bip32utils>=0.3.0
+ecdsa>=0.19.0
+bitcoinlib>=0.6.0
