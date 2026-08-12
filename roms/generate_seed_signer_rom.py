@@ -62,6 +62,16 @@ def make_rom() -> bytes:
     # Boot sequence: NOP + JP 0x0150.
     rom[0x0100:0x0104] = bytes([0x00, 0xC3, 0x50, 0x01])
 
+        # A small valid boot loop makes the cartridge start cleanly on real hardware.
+    boot_code = bytes([
+        0x31, 0xFE, 0xFF,  # LD SP, $FFFE
+        0xAF,              # XOR A
+        0x18, 0xFE,        # JR -2
+    ])
+    for offset, byte in enumerate(boot_code):
+        if 0x0150 + offset < len(rom):
+            rom[0x0150 + offset] = byte
+
     # Header checksum and simple global checksum values.
     rom[0x014D] = header_checksum(bytes(rom))
     rom[0x014E] = 0x00

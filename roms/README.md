@@ -14,7 +14,11 @@ The goal is not to produce a secure wallet, but to validate the idea on a flash 
 1. Copy the generated `.gb` file to the SD/TF card used by your Game Boy flash cartridge.
 2. Insert the cartridge into the Game Boy.
 3. Boot the cartridge and check that it loads the ROM from the flash menu.
-4. Confirm the boot screen and title text appear before moving to more elaborate UI work.
+4. Confirm the system advances past the Nintendo boot screen before moving to more elaborate UI work.
+
+## Why the first version failed
+
+The original placeholder ROM had a header but not a true booting cartridge program. The Game Boy expects a valid cartridge header plus executable boot bytes. The new generator includes a minimal boot loop so the ROM is much more likely to initialize correctly on real hardware.
 
 ## Important warning
 
