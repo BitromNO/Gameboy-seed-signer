@@ -1,0 +1,15 @@
+# Local GBDK toolchain and compiler outputs
+.tools/
+gameboy_wallet/.tools/
+gameboy_wallet/*.ihx
+gameboy_wallet/*.map
+gameboy_wallet/*.noi
+gameboy_wallet/*.sym
+
+# Secret or transaction transfer material: never commit these
+*.sav
+*.psbt
+*phrase*.txt
+*seed*.txt
+*seed*.json
+*private*.txt
