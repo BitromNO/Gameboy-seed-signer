@@ -3,6 +3,8 @@
 > **Development demo only. Never use real funds, a valuable seed phrase, private keys, passphrases, or production transactions with this repository.** It is an unfinished learning project, not a secure hardware wallet.
 
 This repository explores Bitcoin-related workflows on classic Game Boy hardware. It contains early Python experiments, historical ROM-header work, and an actively developed Game Boy Pocket interface for learning about offline workflows.
+<img width="483" height="435" alt="Screenshot_2026-08-15_00-11-36" src="https://github.com/user-attachments/assets/1642a4aa-31ec-48a7-9cd7-17b30bff38ae" />
+<img width="483" height="435" alt="Screenshot_2026-08-15_00-11-15" src="https://github.com/user-attachments/assets/6fa6a31e-649b-42aa-9691-f7971237affd" />
 
 ## Security Status
 
