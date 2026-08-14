@@ -1,86 +1,52 @@
-# Game Boy seed signer prototype
 # Game Boy Seed Signer
 
-This is a small, fun, testnet-only prototype for a Game Boy-style Bitcoin signing workflow. It is not a secure hardware wallet and should not be used with real funds.
-A playful prototype for a Bitcoin seed-signing concept built around the look and feel of a classic Game Boy cartridge.
+> **Development demo only. Never use real funds, a valuable seed phrase, private keys, passphrases, or production transactions with this repository.** It is an unfinished learning project, not a secure hardware wallet.
 
-## Goal
-This project is for experimentation, testnet-only learning, and toy hardware-wallet ideas. It is not a secure wallet, not meant for production use, and should never be used with real funds.
+This repository explores Bitcoin-related workflows on classic Game Boy hardware. It contains early Python experiments, historical ROM-header work, and an actively developed Game Boy Pocket interface for learning about offline workflows.
 
-Create a minimal offline signer concept that can:
-## Highlights
+## Security Status
 
-- generate an HD wallet seed from BIP39 words
-- derive a BIP32 xprv/xpub chain
-- load a PSBT-like unsigned transaction
-- display the transaction summary
-- sign the transaction with the key material
-- output the signed transaction in a simple JSON-like payload
-- BIP39 mnemonic generation
-- BIP32 derivation using a hardened wallet path
-- testnet-oriented signing workflow experiments
-- cartridge-style ROM generation concepts
-- a clean GitHub-ready project layout for future work
+This project does **not** provide secure key storage, tamper resistance, a secure element, reviewed `secp256k1` signing, PSBT parsing, transaction signing, address derivation, or safe production backup handling.
 
-## Important warning
-## Warning
+- Never use real funds.
+- Never enter a valuable recovery phrase.
+- Never place private material in a `.sav` file, SD card, chat, issue, or screenshot.
+- Treat every ROM and helper here as development software only.
 
-This is a prototype for learning and experimentation only.
-> This project is not a secure hardware wallet.
-> It is for educational and testnet-only experimentation.
-> Never use a real seed or production wallet keys.
-> Keep the device offline and use tiny amounts only.
-- use testnet only
-- never use a real seed
-- never attach a real wallet
-- keep it offline
-- use tiny amounts only
-## Project structure
+## Project Layout
 
-## Folder layout
-- `prototype/` — Python logic that models the wallet signing flow
-- `docs/` — design notes and build instructions
-- `prototype/` — Python prototypes for seed generation and signing flow
-- `roms/` — Game Boy ROM generation experiments and cartridge packaging
-- `docs/` — notes, planning, and design ideas
-- `requirements.txt` — Python dependencies
+- `gameboy_wallet/` - Current Game Boy Pocket ROM, build scripts, release snapshots, and emulator/hardware test target.
+- `gameboy_wallet/releases/` - Versioned, checksummed ROM snapshots for rollback.
+- `prototype/` - Python concepts for wallet and signing workflows.
+- `roms/` - Earlier ROM-header and cartridge boot experiments.
+- `docs/` - Project notes and planning.
 
-## Quick start
-@@ -39,18 +36,34 @@ pip install -r requirements.txt
-python3 prototype/demo.py
+## Current Game Boy ROM
+
+The Pocket ROM includes a navigable monochrome interface, dice-entry audit mode, volatile BIP39-word display for UI research, a Game Boy Pro+ SRAM inbox experiment, and a QR link to this repository. None of these features constitute a safe signer or wallet.
+
+Build the current ROM with GBDK-2020:
+
+```sh
+cd gameboy_wallet
+make
 ```
 
-## Prototype behavior
-## What the prototype does
-The current demo flow includes:
-1. Generating a BIP39 mnemonic
-2. Converting the mnemonic into a seed
-3. Deriving a BIP32 root and child keys
-4. Creating a path similar to `m/84'/1'/0'/0/0`
-5. Printing a transaction-like summary for signing experiments
-## ROM experiments
-The `roms/` folder contains a simple cartridge generator that creates a Game Boy ROM-style test artifact with a BTC-themed title and valid cartridge header structure.
-This is primarily a prototype artifact for display and experimentation, not a real secure signing device.
+The current testable artifact is [gameboy_wallet/releases/v0.6.1/pocket_btc.gb](gameboy_wallet/releases/v0.6.1/pocket_btc.gb). Verify its checksum before testing:
+
+```sh
+sha256sum gameboy_wallet/releases/v0.6.1/pocket_btc.gb
+```
+
+See [gameboy_wallet/README.md](gameboy_wallet/README.md) for controls, build requirements, the Pro+ save-file experiment, and important limitations.
+
+## Development Workflow
+
+Every successful hardware or emulator build is preserved in `gameboy_wallet/releases/vX.Y.Z/` with its ROM, source, generated assets, scripts, and SHA-256 checksum. Do not overwrite an existing release; create a new version for each testable change.
+
 ## Roadmap
-- improve the wallet UX for a Game Boy-inspired menu system
-- add cleaner transaction review flow
-- explore PSBT-style input/output handling
-- move from demo logic toward a more realistic offline signer
 
-The current prototype does the following:
-## License
-
-1. Generates a valid mnemonic phrase
-2. Derives a root key from the mnemonic seed
-3. Creates a child wallet key for a simple path like `m/84'/1'/0'/0/0`
-4. Prints the xpub and child info
-5. Produces a sample “transaction” object that would be fed to a real signer
-This repository is provided for experimentation and learning. Use at your own risk.
-
-## Security note
-## Contributing
-
-This does not provide hardware-backed security, secure storage, tamper resistance, or safe transaction review for real funds.
-Feel free to fork this repo and continue development. Keep changes focused on educational and testnet-safe experimentation.
-
-It is meant as a toy project for un
+- Improve Game Boy UI and hardware behavior through emulator and Pocket testing.
+- Keep file transport and seed-session experiments clearly separated from production wallet claims.
+- Add cryptographic functionality only with published test vectors and independent review.
+- Do not use this project with real Bitcoin funds until a complete security design and audit exist.

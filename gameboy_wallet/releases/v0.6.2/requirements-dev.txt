@@ -1,0 +1,2 @@
+# Required only to regenerate the static repository QR asset from its fixed URL.
+qrcode
