@@ -24,6 +24,9 @@ typedef enum PsbtReviewStatus {
 typedef struct PsbtOutputReview {
     uint64_t amount_sats;
     BitcoinOutputType type;
+    uint8_t script_length;
+    uint8_t script[40];
+    uint8_t is_change;
     char address[PSBT_REVIEW_ADDRESS_MAX];
 } PsbtOutputReview;
 

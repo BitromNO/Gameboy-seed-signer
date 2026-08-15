@@ -5,6 +5,7 @@
 #include "psbt_inspector.h"
 #include "psbt_review.h"
 #include "sha256.h"
+#include "wallet_policy.h"
 
 static size_t build_review_fixture(uint8_t data[256]) {
     static const uint8_t program[] = { 0x75u, 0x1Eu, 0x76u, 0xE8u, 0x19u, 0x91u, 0x96u, 0xD4u, 0x54u, 0x94u, 0x1Cu, 0x45u, 0xD1u, 0xB3u, 0xA3u, 0x23u, 0xF1u, 0x43u, 0x3Bu, 0xD6u };
@@ -93,6 +94,7 @@ int main(void) {
     uint8_t review_fixture[256];
     uint8_t non_witness_review_fixture[256];
     PsbtReview review;
+    WalletPolicy policy = { 0u, { { 0u, { 0u } } } };
     size_t review_length;
     size_t non_witness_review_length;
     static const uint8_t sha256_abc[32] = { 0xBAu, 0x78u, 0x16u, 0xBFu, 0x8Fu, 0x01u, 0xCFu, 0xEAu, 0x41u, 0x41u, 0x40u, 0xDEu, 0x5Du, 0xAEu, 0x22u, 0x23u, 0xB0u, 0x03u, 0x61u, 0xA3u, 0x96u, 0x17u, 0x7Au, 0x9Cu, 0xB4u, 0x10u, 0xFFu, 0x61u, 0xF2u, 0x00u, 0x15u, 0xADu };
@@ -129,6 +131,12 @@ int main(void) {
     assert(review.fee_sats == 1000u);
     assert(review.outputs[0].type == BITCOIN_OUTPUT_P2WPKH);
     assert(strcmp(review.outputs[0].address, "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4") == 0);
+    assert(wallet_policy_add_script(&policy, bip173_p2wpkh, sizeof(bip173_p2wpkh)) == 1);
+    wallet_policy_mark_change(&policy, &review);
+    assert(review.outputs[0].is_change == 1u);
+    policy.scripts[0].bytes[2] ^= 1u;
+    wallet_policy_mark_change(&policy, &review);
+    assert(review.outputs[0].is_change == 0u);
     non_witness_review_length = build_non_witness_review_fixture(non_witness_review_fixture);
     assert(psbt_parse_v0_review(non_witness_review_fixture, non_witness_review_length, &review) == PSBT_REVIEW_OK);
     assert(review.known_input_amount_count == 1u);

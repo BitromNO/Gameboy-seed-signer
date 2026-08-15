@@ -36,6 +36,8 @@ It prints only structural metadata and rejects malformed files. It does not sign
 
 The in-progress review engine can retain up to 64 outputs, render recognized recipient scripts as mainnet addresses, and calculate a fee only when every input amount is supplied through one unambiguous `witness_utxo` or `non_witness_utxo` record. It does not infer a fee from incomplete input data.
 
+Change is not guessed. The policy layer marks an output as change only when its complete script exactly matches a wallet-owned script registered by a future trusted descriptor/derivation component. All non-matches remain unclassified until that component exists.
+
 ## Intended Workflow
 
 ```text

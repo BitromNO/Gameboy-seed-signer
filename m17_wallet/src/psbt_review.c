@@ -55,6 +55,9 @@ static PsbtReviewStatus parse_output(const uint8_t *data, size_t length, size_t 
     *offset += 8u;
     status = read_compact_size(data, length, offset, &script_length);
     if (status != PSBT_REVIEW_OK || script_length > length - *offset) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+    output->script_length = script_length <= sizeof(output->script) ? (uint8_t)script_length : 0u;
+    if (output->script_length != 0u) memcpy(output->script, data + *offset, output->script_length);
+    output->is_change = 0u;
     output->type = bitcoin_classify_output_script(data + *offset, script_length);
     output->address[0] = '\0';
     if (output->type == BITCOIN_OUTPUT_P2PKH || output->type == BITCOIN_OUTPUT_P2SH) {
