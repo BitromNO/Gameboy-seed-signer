@@ -25,6 +25,16 @@ typedef enum PsbtVersion {
     PSBT_VERSION_V2
 } PsbtVersion;
 
+typedef enum BitcoinOutputType {
+    BITCOIN_OUTPUT_UNKNOWN,
+    BITCOIN_OUTPUT_P2PKH,
+    BITCOIN_OUTPUT_P2SH,
+    BITCOIN_OUTPUT_P2WPKH,
+    BITCOIN_OUTPUT_P2WSH,
+    BITCOIN_OUTPUT_P2TR,
+    BITCOIN_OUTPUT_OP_RETURN
+} BitcoinOutputType;
+
 typedef struct PsbtFileInfo {
     uint32_t byte_count;
     uint32_t global_map_bytes;
@@ -32,12 +42,14 @@ typedef struct PsbtFileInfo {
     PsbtVersion version;
     uint16_t input_count;
     uint16_t output_count;
+    uint16_t recognized_output_count;
     uint64_t total_output_sats;
 } PsbtFileInfo;
 
 #define PSBT_MAX_BYTES (1024u * 1024u)
 
 PsbtStatus psbt_validate_envelope(const uint8_t *data, size_t length, PsbtFileInfo *info);
+BitcoinOutputType bitcoin_classify_output_script(const uint8_t *script, size_t length);
 const char *psbt_status_message(PsbtStatus status);
 
 #endif

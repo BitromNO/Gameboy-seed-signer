@@ -44,12 +44,24 @@ static uint64_t read_u64_le(const uint8_t *data) {
            ((uint64_t)data[4] << 32) | ((uint64_t)data[5] << 40) | ((uint64_t)data[6] << 48) | ((uint64_t)data[7] << 56);
 }
 
+BitcoinOutputType bitcoin_classify_output_script(const uint8_t *script, size_t length) {
+    if (script == 0) return BITCOIN_OUTPUT_UNKNOWN;
+    if (length >= 1u && script[0] == 0x6Au) return BITCOIN_OUTPUT_OP_RETURN;
+    if (length == 25u && script[0] == 0x76u && script[1] == 0xA9u && script[2] == 0x14u && script[23] == 0x88u && script[24] == 0xACu) return BITCOIN_OUTPUT_P2PKH;
+    if (length == 23u && script[0] == 0xA9u && script[1] == 0x14u && script[22] == 0x87u) return BITCOIN_OUTPUT_P2SH;
+    if (length == 22u && script[0] == 0x00u && script[1] == 0x14u) return BITCOIN_OUTPUT_P2WPKH;
+    if (length == 34u && script[0] == 0x00u && script[1] == 0x20u) return BITCOIN_OUTPUT_P2WSH;
+    if (length == 34u && script[0] == 0x51u && script[1] == 0x20u) return BITCOIN_OUTPUT_P2TR;
+    return BITCOIN_OUTPUT_UNKNOWN;
+}
+
 static PsbtStatus parse_unsigned_transaction(const uint8_t *data, uint32_t length, PsbtFileInfo *info) {
     size_t offset = 0u;
     uint32_t input_count;
     uint32_t output_count;
     uint32_t script_length;
     uint32_t index;
+    uint16_t recognized_output_count = 0u;
     uint64_t total_output_sats = 0u;
     uint64_t amount;
     PsbtStatus status;
@@ -80,6 +92,8 @@ static PsbtStatus parse_unsigned_transaction(const uint8_t *data, uint32_t lengt
         offset += 8u;
         status = read_compact_size(data, length, &offset, &script_length);
         if (status != PSBT_STATUS_OK) return PSBT_STATUS_INVALID_UNSIGNED_TRANSACTION;
+        if (script_length > length - offset) return PSBT_STATUS_INVALID_UNSIGNED_TRANSACTION;
+        if (bitcoin_classify_output_script(data + offset, script_length) != BITCOIN_OUTPUT_UNKNOWN) recognized_output_count++;
         status = skip_bytes(length, &offset, script_length);
         if (status != PSBT_STATUS_OK) return status;
     }
@@ -87,6 +101,7 @@ static PsbtStatus parse_unsigned_transaction(const uint8_t *data, uint32_t lengt
     if (info != 0) {
         info->input_count = (uint16_t)input_count;
         info->output_count = (uint16_t)output_count;
+        info->recognized_output_count = recognized_output_count;
         info->total_output_sats = total_output_sats;
     }
     return PSBT_STATUS_OK;

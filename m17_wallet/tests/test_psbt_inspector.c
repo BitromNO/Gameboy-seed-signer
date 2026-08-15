@@ -23,7 +23,11 @@ int main(void) {
     static const uint8_t truncated_psbt[] = { 0x70u, 0x73u, 0x62u, 0x74u, 0xFFu, 0x02u, 0x00u };
     static const uint8_t non_canonical_psbt[] = { 0x70u, 0x73u, 0x62u, 0x74u, 0xFFu, 0xFDu, 0x01u, 0x00u };
     static const uint8_t unterminated_psbt[] = { 0x70u, 0x73u, 0x62u, 0x74u, 0xFFu, 0x01u, 0xFCu, 0x00u };
-    PsbtFileInfo info = { 0u, 0u, 0u, PSBT_VERSION_UNKNOWN, 0u, 0u, 0u };
+    static const uint8_t p2pkh[] = { 0x76u, 0xA9u, 0x14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0x88u, 0xACu };
+    static const uint8_t p2wpkh[] = { 0x00u, 0x14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u };
+    static const uint8_t p2tr[] = { 0x51u, 0x20u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u };
+    static const uint8_t op_return[] = { 0x6Au, 0x02u, 0x01u, 0x02u };
+    PsbtFileInfo info = { 0u, 0u, 0u, PSBT_VERSION_UNKNOWN, 0u, 0u, 0u, 0u };
 
     assert(psbt_validate_envelope(valid_psbt_v0, sizeof(valid_psbt_v0), &info) == PSBT_STATUS_OK);
     assert(info.byte_count == sizeof(valid_psbt_v0));
@@ -32,7 +36,12 @@ int main(void) {
     assert(info.version == PSBT_VERSION_V0);
     assert(info.input_count == 1u);
     assert(info.output_count == 1u);
+    assert(info.recognized_output_count == 0u);
     assert(info.total_output_sats == 1000u);
+    assert(bitcoin_classify_output_script(p2pkh, sizeof(p2pkh)) == BITCOIN_OUTPUT_P2PKH);
+    assert(bitcoin_classify_output_script(p2wpkh, sizeof(p2wpkh)) == BITCOIN_OUTPUT_P2WPKH);
+    assert(bitcoin_classify_output_script(p2tr, sizeof(p2tr)) == BITCOIN_OUTPUT_P2TR);
+    assert(bitcoin_classify_output_script(op_return, sizeof(op_return)) == BITCOIN_OUTPUT_OP_RETURN);
     assert(psbt_validate_envelope(valid_psbt_v2, sizeof(valid_psbt_v2), &info) == PSBT_STATUS_OK);
     assert(info.version == PSBT_VERSION_V2);
     assert(psbt_validate_envelope(duplicate_version, sizeof(duplicate_version), &info) == PSBT_STATUS_DUPLICATE_GLOBAL_FIELD);

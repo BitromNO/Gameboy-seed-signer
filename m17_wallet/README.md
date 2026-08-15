@@ -6,7 +6,7 @@ This project targets the SJGAM M17 running MinUI. It is separate from `gameboy_w
 
 ## Current State
 
-The current host build validates the PSBT magic prefix and structurally parses the global key-value map using bounded canonical CompactSize decoding. It detects declared PSBT v0/v2 global fields and rejects duplicate or inconsistent version declarations. For PSBT v0, it parses the unsigned transaction enough to count inputs/outputs and safely total outputs in sats. It does not yet decode destination scripts, calculate fees or change, derive keys, decrypt a vault, sign, export a signed PSBT, or provide an M17 graphical interface.
+The current host build validates the PSBT magic prefix and structurally parses the global key-value map using bounded canonical CompactSize decoding. It detects declared PSBT v0/v2 global fields and rejects duplicate or inconsistent version declarations. For PSBT v0, it parses the unsigned transaction enough to count inputs/outputs and safely total outputs in sats. It classifies recognized output scripts as P2PKH, P2SH, P2WPKH, P2WSH, P2TR, or OP_RETURN, but does not yet encode destination addresses, calculate fees or change, derive keys, decrypt a vault, sign, export a signed PSBT, or provide an M17 graphical interface.
 
 The first M17 deployment target is a MinUI package:
 
