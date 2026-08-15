@@ -39,6 +39,21 @@ static int add_owned_script_hex(WalletPolicy *policy, const char *hex) {
     return wallet_policy_add_script(policy, script, length);
 }
 
+static int parse_u64(const char *text, uint64_t *value) {
+    uint64_t result = 0u;
+    uint8_t digit;
+
+    if (*text == '\0') return 0;
+    while (*text != '\0') {
+        if (*text < '0' || *text > '9') return 0;
+        digit = (uint8_t)(*text++ - '0');
+        if (UINT64_MAX / 10u < result || (UINT64_MAX / 10u == result && UINT64_MAX % 10u < digit)) return 0;
+        result = result * 10u + digit;
+    }
+    *value = result;
+    return 1;
+}
+
 int main(int argc, char *argv[]) {
     FILE *file;
     long file_size;
@@ -52,21 +67,32 @@ int main(int argc, char *argv[]) {
     uint16_t output_index;
     int argument_index;
     const char *psbt_path;
+    uint64_t maximum_fee_sats = 0u;
 
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s [--owned-script scriptpubkey-hex] unsigned.psbt\n", argv[0]);
+        fprintf(stderr, "Usage: %s [--owned-script scriptpubkey-hex] [--max-fee-sats sats] unsigned.psbt\n", argv[0]);
         return 2;
     }
     argument_index = 1;
-    while (argument_index + 1 < argc && strcmp(argv[argument_index], "--owned-script") == 0) {
-        if (!add_owned_script_hex(&policy, argv[argument_index + 1])) {
-            fprintf(stderr, "Invalid or oversized owned script\n");
+    while (argument_index + 1 < argc && argv[argument_index][0] == '-') {
+        if (strcmp(argv[argument_index], "--owned-script") == 0) {
+            if (!add_owned_script_hex(&policy, argv[argument_index + 1])) {
+                fprintf(stderr, "Invalid or oversized owned script\n");
+                return 2;
+            }
+        } else if (strcmp(argv[argument_index], "--max-fee-sats") == 0) {
+            if (!parse_u64(argv[argument_index + 1], &maximum_fee_sats) || maximum_fee_sats == 0u) {
+                fprintf(stderr, "Maximum fee must be a positive satoshi amount\n");
+                return 2;
+            }
+        } else {
+            fprintf(stderr, "Unknown option: %s\n", argv[argument_index]);
             return 2;
         }
         argument_index += 2;
     }
     if (argument_index != argc - 1) {
-        fprintf(stderr, "Usage: %s [--owned-script scriptpubkey-hex] unsigned.psbt\n", argv[0]);
+        fprintf(stderr, "Usage: %s [--owned-script scriptpubkey-hex] [--max-fee-sats sats] unsigned.psbt\n", argv[0]);
         return 2;
     }
     psbt_path = argv[argument_index];
@@ -139,7 +165,7 @@ int main(int argc, char *argv[]) {
         }
         if (review.fee_is_known) printf("Fee (sats): %llu\n", (unsigned long long)review.fee_sats);
         else printf("Fee: unavailable (input amounts incomplete)\n");
-        review_flags = psbt_review_flags(&review, 0u);
+        review_flags = psbt_review_flags(&review, maximum_fee_sats);
         if (review_flags == 0u) printf("Warnings: none\n");
         else {
             printf("Warnings:");
@@ -148,6 +174,7 @@ int main(int argc, char *argv[]) {
             if (review_flags & REVIEW_FLAG_UNKNOWN_OUTPUT) printf(" unknown-output");
             if (review_flags & REVIEW_FLAG_FEE_UNAVAILABLE) printf(" fee-unavailable");
             if (review_flags & REVIEW_FLAG_FEE_LIMIT) printf(" fee-limit");
+            if (review_flags & REVIEW_FLAG_RBF) printf(" rbf");
             printf("\n");
         }
     }

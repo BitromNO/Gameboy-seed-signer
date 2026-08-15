@@ -166,9 +166,9 @@ int main(void) {
     assert(review.outputs[0].type == BITCOIN_OUTPUT_P2WPKH);
     assert(psbt_review_flags(&review, 0u) == 0u);
     review.locktime = 500u;
-    review.inputs[0].sequence = 0xFFFFFFFEu;
+    review.inputs[0].sequence = 0xFFFFFFFDu;
     review.outputs[0].type = BITCOIN_OUTPUT_UNKNOWN;
-    assert(psbt_review_flags(&review, 500u) == (REVIEW_FLAG_LOCKTIME | REVIEW_FLAG_NONFINAL_SEQUENCE | REVIEW_FLAG_UNKNOWN_OUTPUT | REVIEW_FLAG_FEE_LIMIT));
+    assert(psbt_review_flags(&review, 500u) == (REVIEW_FLAG_LOCKTIME | REVIEW_FLAG_NONFINAL_SEQUENCE | REVIEW_FLAG_UNKNOWN_OUTPUT | REVIEW_FLAG_FEE_LIMIT | REVIEW_FLAG_RBF));
     assert(strcmp(review.outputs[0].address, "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4") == 0);
     assert(wallet_policy_add_script(&policy, bip173_p2wpkh, sizeof(bip173_p2wpkh)) == 1);
     wallet_policy_mark_change(&policy, &review);

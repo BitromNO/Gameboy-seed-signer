@@ -8,6 +8,7 @@ uint32_t psbt_review_flags(const PsbtReview *review, uint64_t maximum_fee_sats) 
     if (review->locktime != 0u) flags |= REVIEW_FLAG_LOCKTIME;
     for (index = 0u; index < review->input_count; index++) {
         if (review->inputs[index].sequence != 0xFFFFFFFFu) flags |= REVIEW_FLAG_NONFINAL_SEQUENCE;
+        if (review->inputs[index].sequence < 0xFFFFFFFEu) flags |= REVIEW_FLAG_RBF;
     }
     for (index = 0u; index < review->output_count; index++) {
         if (review->outputs[index].type == BITCOIN_OUTPUT_UNKNOWN) flags |= REVIEW_FLAG_UNKNOWN_OUTPUT;

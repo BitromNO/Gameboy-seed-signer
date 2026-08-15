@@ -42,6 +42,14 @@ For a development-only change review, pass a complete wallet-owned scriptPubKey 
 
 Only an exact script match receives the `[CHANGE]` label. This option takes public scripts, not a seed or private key.
 
+Use a visible maximum-fee guard when reviewing a PSBT:
+
+```sh
+./build/psbt-inspect --max-fee-sats 5000 unsigned.psbt
+```
+
+The review warning output distinguishes generic non-final sequences from replace-by-fee signaling.
+
 The in-progress review engine can retain up to 64 outputs, render recognized recipient scripts as mainnet addresses, and calculate a fee only when every input amount is supplied through one unambiguous `witness_utxo` or `non_witness_utxo` record. It does not infer a fee from incomplete input data.
 
 For v0 transactions the review engine also retains transaction version, locktime, previous-output references, and input sequence values so a later UI can visibly flag timelocked or non-final transactions instead of silently hiding those constraints.

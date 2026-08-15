@@ -10,6 +10,7 @@
 #define REVIEW_FLAG_UNKNOWN_OUTPUT 0x04u
 #define REVIEW_FLAG_FEE_UNAVAILABLE 0x08u
 #define REVIEW_FLAG_FEE_LIMIT 0x10u
+#define REVIEW_FLAG_RBF 0x20u
 
 uint32_t psbt_review_flags(const PsbtReview *review, uint64_t maximum_fee_sats);
 
