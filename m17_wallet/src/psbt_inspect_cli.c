@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "psbt_inspector.h"
 #include "psbt_review.h"
+#include "wallet_policy.h"
 
 static const char *version_name(PsbtVersion version) {
     switch (version) {
@@ -12,21 +14,61 @@ static const char *version_name(PsbtVersion version) {
     }
 }
 
+static int hex_value(char character) {
+    if (character >= '0' && character <= '9') return character - '0';
+    if (character >= 'a' && character <= 'f') return character - 'a' + 10;
+    if (character >= 'A' && character <= 'F') return character - 'A' + 10;
+    return -1;
+}
+
+static int add_owned_script_hex(WalletPolicy *policy, const char *hex) {
+    uint8_t script[WALLET_POLICY_MAX_SCRIPT_BYTES];
+    size_t length = 0u;
+    int high;
+    int low;
+
+    while (hex[length * 2u] != '\0') {
+        if (hex[length * 2u + 1u] == '\0') return 0;
+        high = hex_value(hex[length * 2u]);
+        low = hex_value(hex[length * 2u + 1u]);
+        if (high < 0 || low < 0 || length == sizeof(script)) return 0;
+        script[length++] = (uint8_t)((high << 4) | low);
+    }
+    if (length == 0u) return 0;
+    return wallet_policy_add_script(policy, script, length);
+}
+
 int main(int argc, char *argv[]) {
     FILE *file;
     long file_size;
     uint8_t *data;
     PsbtFileInfo info = { 0u, 0u, 0u, PSBT_VERSION_UNKNOWN, 0u, 0u, 0u, 0u };
     PsbtReview review;
+    WalletPolicy policy = { 0u, { { 0u, { 0u } } } };
     PsbtStatus status;
     PsbtReviewStatus review_status;
     uint16_t output_index;
+    int argument_index;
+    const char *psbt_path;
 
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s unsigned.psbt\n", argv[0]);
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s [--owned-script scriptpubkey-hex] unsigned.psbt\n", argv[0]);
         return 2;
     }
-    file = fopen(argv[1], "rb");
+    argument_index = 1;
+    while (argument_index + 1 < argc && strcmp(argv[argument_index], "--owned-script") == 0) {
+        if (!add_owned_script_hex(&policy, argv[argument_index + 1])) {
+            fprintf(stderr, "Invalid or oversized owned script\n");
+            return 2;
+        }
+        argument_index += 2;
+    }
+    if (argument_index != argc - 1) {
+        fprintf(stderr, "Usage: %s [--owned-script scriptpubkey-hex] unsigned.psbt\n", argv[0]);
+        return 2;
+    }
+    psbt_path = argv[argument_index];
+    file = fopen(psbt_path, "rb");
     if (file == NULL) {
         perror("Cannot open PSBT");
         return 2;
@@ -68,7 +110,7 @@ int main(int argc, char *argv[]) {
     if (info.version == PSBT_VERSION_V0) printf("Output total (sats): %llu\n", (unsigned long long)info.total_output_sats);
     printf("Recognized outputs: %u\n", info.recognized_output_count);
     if (info.version == PSBT_VERSION_V0) {
-        file = fopen(argv[1], "rb");
+        file = fopen(psbt_path, "rb");
         if (file == NULL) return 2;
         data = malloc((size_t)file_size);
         if (data == NULL && file_size != 0L) { fclose(file); return 2; }
@@ -80,9 +122,11 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Review unavailable: %s\n", psbt_review_status_message(review_status));
             return 1;
         }
+        wallet_policy_mark_change(&policy, &review);
         for (output_index = 0u; output_index < review.output_count; output_index++) {
             printf("Output %u: %llu sats", (unsigned)(output_index + 1u), (unsigned long long)review.outputs[output_index].amount_sats);
             if (review.outputs[output_index].address[0] != '\0') printf(" -> %s", review.outputs[output_index].address);
+            if (review.outputs[output_index].is_change) printf(" [CHANGE]");
             printf("\n");
         }
         if (review.fee_is_known) printf("Fee (sats): %llu\n", (unsigned long long)review.fee_sats);
