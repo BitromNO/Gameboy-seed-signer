@@ -20,6 +20,7 @@ This project does **not** provide secure key storage, tamper resistance, a secur
 
 - `gameboy_wallet/` - Current Game Boy Pocket ROM, build scripts, release snapshots, and emulator/hardware test target.
 - `gameboy_wallet/releases/` - Versioned, checksummed ROM snapshots for rollback.
+- `m17_wallet/` - Separate M17/MinUI native signer-development target with host-side PSBT envelope tests.
 - `prototype/` - Python concepts for wallet and signing workflows.
 - `roms/` - Earlier ROM-header and cartridge boot experiments.
 - `docs/` - Project notes and planning.
@@ -42,6 +43,10 @@ sha256sum gameboy_wallet/releases/v0.6.1/pocket_btc.gb
 ```
 
 See [gameboy_wallet/README.md](gameboy_wallet/README.md) for controls, build requirements, the Pro+ save-file experiment, and important limitations.
+
+## M17 Development Target
+
+The SJGAM M17 target runs as a separate MinUI `.pak` package and is not connected to the Game Boy code. Its first milestone is strict, read-only PSBT file handling; it does not currently parse transactions, decrypt a seed vault, sign, or export signed PSBTs. See [m17_wallet/README.md](m17_wallet/README.md).
 
 ## Development Workflow
 
