@@ -46,6 +46,8 @@ The in-progress review engine can retain up to 64 outputs, render recognized rec
 
 For v0 transactions the review engine also retains transaction version, locktime, previous-output references, and input sequence values so a later UI can visibly flag timelocked or non-final transactions instead of silently hiding those constraints.
 
+The review layer produces explicit flags for nonzero locktime, non-final sequences, unknown output scripts, unavailable fees, and an optional maximum-fee threshold. A future M17 UI must surface these flags before any confirmation action exists.
+
 PSBT v2 output maps are reviewed when they include their required amount and script fields. A v2 fee is calculated only when every input includes its required prevout fields plus one unambiguous standard UTXO record.
 
 Change is not guessed. The policy layer marks an output as change only when its complete script exactly matches a wallet-owned script registered by a future trusted descriptor/derivation component. All non-matches remain unclassified until that component exists.

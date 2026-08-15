@@ -4,6 +4,7 @@
 
 #include "psbt_inspector.h"
 #include "psbt_review.h"
+#include "review_flags.h"
 #include "sha256.h"
 #include "wallet_policy.h"
 
@@ -163,6 +164,11 @@ int main(void) {
     assert(review.fee_is_known == 1u);
     assert(review.fee_sats == 1000u);
     assert(review.outputs[0].type == BITCOIN_OUTPUT_P2WPKH);
+    assert(psbt_review_flags(&review, 0u) == 0u);
+    review.locktime = 500u;
+    review.inputs[0].sequence = 0xFFFFFFFEu;
+    review.outputs[0].type = BITCOIN_OUTPUT_UNKNOWN;
+    assert(psbt_review_flags(&review, 500u) == (REVIEW_FLAG_LOCKTIME | REVIEW_FLAG_NONFINAL_SEQUENCE | REVIEW_FLAG_UNKNOWN_OUTPUT | REVIEW_FLAG_FEE_LIMIT));
     assert(strcmp(review.outputs[0].address, "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4") == 0);
     assert(wallet_policy_add_script(&policy, bip173_p2wpkh, sizeof(bip173_p2wpkh)) == 1);
     wallet_policy_mark_change(&policy, &review);

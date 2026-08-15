@@ -4,6 +4,7 @@
 
 #include "psbt_inspector.h"
 #include "psbt_review.h"
+#include "review_flags.h"
 #include "wallet_policy.h"
 
 static const char *version_name(PsbtVersion version) {
@@ -47,6 +48,7 @@ int main(int argc, char *argv[]) {
     WalletPolicy policy = { 0u, { { 0u, { 0u } } } };
     PsbtStatus status;
     PsbtReviewStatus review_status;
+    uint32_t review_flags;
     uint16_t output_index;
     int argument_index;
     const char *psbt_path;
@@ -137,6 +139,17 @@ int main(int argc, char *argv[]) {
         }
         if (review.fee_is_known) printf("Fee (sats): %llu\n", (unsigned long long)review.fee_sats);
         else printf("Fee: unavailable (input amounts incomplete)\n");
+        review_flags = psbt_review_flags(&review, 0u);
+        if (review_flags == 0u) printf("Warnings: none\n");
+        else {
+            printf("Warnings:");
+            if (review_flags & REVIEW_FLAG_LOCKTIME) printf(" locktime");
+            if (review_flags & REVIEW_FLAG_NONFINAL_SEQUENCE) printf(" non-final-sequence");
+            if (review_flags & REVIEW_FLAG_UNKNOWN_OUTPUT) printf(" unknown-output");
+            if (review_flags & REVIEW_FLAG_FEE_UNAVAILABLE) printf(" fee-unavailable");
+            if (review_flags & REVIEW_FLAG_FEE_LIMIT) printf(" fee-limit");
+            printf("\n");
+        }
     }
     return 0;
 }
