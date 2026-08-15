@@ -116,6 +116,10 @@ PsbtStatus psbt_validate_envelope(const uint8_t *data, size_t length, PsbtFileIn
     uint8_t key_type;
     uint8_t saw_unsigned_transaction = 0u;
     uint8_t saw_version = 0u;
+    uint8_t saw_input_count = 0u;
+    uint8_t saw_output_count = 0u;
+    uint32_t v2_input_count = 0u;
+    uint32_t v2_output_count = 0u;
     PsbtVersion version = PSBT_VERSION_UNKNOWN;
     PsbtStatus status;
 
@@ -130,11 +134,16 @@ PsbtStatus psbt_validate_envelope(const uint8_t *data, size_t length, PsbtFileIn
         status = read_compact_size(data, length, &offset, &key_length);
         if (status != PSBT_STATUS_OK) return status;
         if (key_length == 0u) {
+            if (version == PSBT_VERSION_V2 && (!saw_input_count || !saw_output_count)) return PSBT_STATUS_MISSING_V2_COUNTS;
             if (info != 0) {
                 info->byte_count = (uint32_t)length;
                 info->global_map_bytes = (uint32_t)(offset - sizeof(psbt_magic));
                 info->global_record_count = record_count;
                 info->version = version;
+                if (version == PSBT_VERSION_V2) {
+                    info->input_count = (uint16_t)v2_input_count;
+                    info->output_count = (uint16_t)v2_output_count;
+                }
             }
             return PSBT_STATUS_OK;
         }
@@ -148,6 +157,14 @@ PsbtStatus psbt_validate_envelope(const uint8_t *data, size_t length, PsbtFileIn
         if (key_length == 1u && key_type == 0xFBu) {
             if (saw_version) return PSBT_STATUS_DUPLICATE_GLOBAL_FIELD;
             saw_version = 1u;
+        }
+        if (key_length == 1u && key_type == 0x04u) {
+            if (saw_input_count) return PSBT_STATUS_DUPLICATE_GLOBAL_FIELD;
+            saw_input_count = 1u;
+        }
+        if (key_length == 1u && key_type == 0x05u) {
+            if (saw_output_count) return PSBT_STATUS_DUPLICATE_GLOBAL_FIELD;
+            saw_output_count = 1u;
         }
         offset += key_length;
         status = read_compact_size(data, length, &offset, &value_length);
@@ -165,6 +182,15 @@ PsbtStatus psbt_validate_envelope(const uint8_t *data, size_t length, PsbtFileIn
             if (declared_version != 2u) return PSBT_STATUS_INVALID_GLOBAL_VERSION;
             if (version == PSBT_VERSION_V0) return PSBT_STATUS_INVALID_GLOBAL_VERSION;
             version = PSBT_VERSION_V2;
+        }
+        if (key_length == 1u && (key_type == 0x04u || key_type == 0x05u)) {
+            size_t count_offset = offset;
+            uint32_t decoded_count;
+            status = read_compact_size(data, offset + value_length, &count_offset, &decoded_count);
+            if (status != PSBT_STATUS_OK || count_offset != offset + value_length) return PSBT_STATUS_INVALID_UNSIGNED_TRANSACTION;
+            if (decoded_count == 0u || decoded_count > PSBT_TRANSACTION_ITEM_LIMIT) return PSBT_STATUS_TRANSACTION_COUNT_LIMIT;
+            if (key_type == 0x04u) v2_input_count = decoded_count;
+            else v2_output_count = decoded_count;
         }
         offset += value_length;
         if (record_count == UINT16_MAX) return PSBT_STATUS_TOO_LARGE;
@@ -187,6 +213,7 @@ const char *psbt_status_message(PsbtStatus status) {
         case PSBT_STATUS_INVALID_GLOBAL_VERSION: return "PSBT global version is unsupported or inconsistent";
         case PSBT_STATUS_INVALID_UNSIGNED_TRANSACTION: return "PSBT unsigned transaction is malformed";
         case PSBT_STATUS_TRANSACTION_COUNT_LIMIT: return "PSBT transaction count exceeds development limit";
+        case PSBT_STATUS_MISSING_V2_COUNTS: return "PSBT v2 lacks transaction counts";
     }
     return "Unknown PSBT status";
 }
