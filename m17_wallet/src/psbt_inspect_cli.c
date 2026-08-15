@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "psbt_inspector.h"
+#include "psbt_review.h"
 
 static const char *version_name(PsbtVersion version) {
     switch (version) {
@@ -16,7 +17,10 @@ int main(int argc, char *argv[]) {
     long file_size;
     uint8_t *data;
     PsbtFileInfo info = { 0u, 0u, 0u, PSBT_VERSION_UNKNOWN, 0u, 0u, 0u, 0u };
+    PsbtReview review;
     PsbtStatus status;
+    PsbtReviewStatus review_status;
+    uint16_t output_index;
 
     if (argc != 2) {
         fprintf(stderr, "Usage: %s unsigned.psbt\n", argv[0]);
@@ -63,5 +67,26 @@ int main(int argc, char *argv[]) {
     printf("Outputs: %u\n", info.output_count);
     if (info.version == PSBT_VERSION_V0) printf("Output total (sats): %llu\n", (unsigned long long)info.total_output_sats);
     printf("Recognized outputs: %u\n", info.recognized_output_count);
+    if (info.version == PSBT_VERSION_V0) {
+        file = fopen(argv[1], "rb");
+        if (file == NULL) return 2;
+        data = malloc((size_t)file_size);
+        if (data == NULL && file_size != 0L) { fclose(file); return 2; }
+        if ((size_t)file_size != fread(data, 1u, (size_t)file_size, file)) { free(data); fclose(file); return 2; }
+        fclose(file);
+        review_status = psbt_parse_v0_review(data, (size_t)file_size, &review);
+        free(data);
+        if (review_status != PSBT_REVIEW_OK) {
+            fprintf(stderr, "Review unavailable: %s\n", psbt_review_status_message(review_status));
+            return 1;
+        }
+        for (output_index = 0u; output_index < review.output_count; output_index++) {
+            printf("Output %u: %llu sats", (unsigned)(output_index + 1u), (unsigned long long)review.outputs[output_index].amount_sats);
+            if (review.outputs[output_index].address[0] != '\0') printf(" -> %s", review.outputs[output_index].address);
+            printf("\n");
+        }
+        if (review.fee_is_known) printf("Fee (sats): %llu\n", (unsigned long long)review.fee_sats);
+        else printf("Fee: unavailable (input amounts incomplete)\n");
+    }
     return 0;
 }

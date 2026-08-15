@@ -3,7 +3,35 @@
 #include <string.h>
 
 #include "psbt_inspector.h"
+#include "psbt_review.h"
 #include "sha256.h"
+
+static size_t build_review_fixture(uint8_t data[256]) {
+    static const uint8_t program[] = { 0x75u, 0x1Eu, 0x76u, 0xE8u, 0x19u, 0x91u, 0x96u, 0xD4u, 0x54u, 0x94u, 0x1Cu, 0x45u, 0xD1u, 0xB3u, 0xA3u, 0x23u, 0xF1u, 0x43u, 0x3Bu, 0xD6u };
+    size_t offset = 0u;
+    uint8_t index;
+
+    data[offset++] = 0x70u; data[offset++] = 0x73u; data[offset++] = 0x62u; data[offset++] = 0x74u; data[offset++] = 0xFFu;
+    data[offset++] = 0x01u; data[offset++] = 0x00u; data[offset++] = 0x52u;
+    data[offset++] = 0x01u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x01u;
+    for (index = 0u; index < 32u; index++) data[offset++] = 0u;
+    data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u;
+    data[offset++] = 0x00u;
+    data[offset++] = 0xFFu; data[offset++] = 0xFFu; data[offset++] = 0xFFu; data[offset++] = 0xFFu;
+    data[offset++] = 0x01u;
+    data[offset++] = 0xE8u; data[offset++] = 0x03u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u;
+    data[offset++] = 0x16u; data[offset++] = 0x00u; data[offset++] = 0x14u;
+    for (index = 0u; index < sizeof(program); index++) data[offset++] = program[index];
+    data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u;
+    data[offset++] = 0x00u;
+    data[offset++] = 0x01u; data[offset++] = 0x01u; data[offset++] = 0x1Fu;
+    data[offset++] = 0xD0u; data[offset++] = 0x07u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u;
+    data[offset++] = 0x16u; data[offset++] = 0x00u; data[offset++] = 0x14u;
+    for (index = 0u; index < sizeof(program); index++) data[offset++] = program[index];
+    data[offset++] = 0x00u;
+    data[offset++] = 0x00u;
+    return offset;
+}
 
 int main(void) {
     static const uint8_t valid_psbt_v0[] = {
@@ -42,6 +70,9 @@ int main(void) {
     PsbtFileInfo info = { 0u, 0u, 0u, PSBT_VERSION_UNKNOWN, 0u, 0u, 0u, 0u };
     char address[91];
     uint8_t digest[32];
+    uint8_t review_fixture[256];
+    PsbtReview review;
+    size_t review_length;
     static const uint8_t sha256_abc[32] = { 0xBAu, 0x78u, 0x16u, 0xBFu, 0x8Fu, 0x01u, 0xCFu, 0xEAu, 0x41u, 0x41u, 0x40u, 0xDEu, 0x5Du, 0xAEu, 0x22u, 0x23u, 0xB0u, 0x03u, 0x61u, 0xA3u, 0x96u, 0x17u, 0x7Au, 0x9Cu, 0xB4u, 0x10u, 0xFFu, 0x61u, 0xF2u, 0x00u, 0x15u, 0xADu };
 
     assert(psbt_validate_envelope(valid_psbt_v0, sizeof(valid_psbt_v0), &info) == PSBT_STATUS_OK);
@@ -65,6 +96,17 @@ int main(void) {
     assert(strcmp(address, "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH") == 0);
     sha256_digest((const uint8_t *)"abc", 3u, digest);
     assert(memcmp(digest, sha256_abc, sizeof(digest)) == 0);
+    review_length = build_review_fixture(review_fixture);
+    assert(psbt_parse_v0_review(review_fixture, review_length, &review) == PSBT_REVIEW_OK);
+    assert(review.input_count == 1u);
+    assert(review.output_count == 1u);
+    assert(review.known_input_amount_count == 1u);
+    assert(review.total_input_sats == 2000u);
+    assert(review.total_output_sats == 1000u);
+    assert(review.fee_is_known == 1u);
+    assert(review.fee_sats == 1000u);
+    assert(review.outputs[0].type == BITCOIN_OUTPUT_P2WPKH);
+    assert(strcmp(review.outputs[0].address, "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4") == 0);
     assert(psbt_validate_envelope(valid_psbt_v2, sizeof(valid_psbt_v2), &info) == PSBT_STATUS_OK);
     assert(info.version == PSBT_VERSION_V2);
     assert(info.input_count == 1u);

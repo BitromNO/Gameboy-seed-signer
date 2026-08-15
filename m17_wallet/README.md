@@ -34,6 +34,8 @@ make inspect
 
 It prints only structural metadata and rejects malformed files. It does not sign, modify, or export PSBTs.
 
+The in-progress review engine can retain up to 64 outputs, render recognized recipient scripts as mainnet addresses, and calculate a fee only when all input amounts are supplied through unambiguous `witness_utxo` records. It does not infer a fee from incomplete input data.
+
 ## Intended Workflow
 
 ```text
