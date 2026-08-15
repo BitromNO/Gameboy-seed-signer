@@ -1,5 +1,7 @@
 #include "psbt_inspector.h"
 
+static const char bech32_charset[] = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+
 static const uint8_t psbt_magic[] = { 0x70u, 0x73u, 0x62u, 0x74u, 0xFFu };
 #define PSBT_TRANSACTION_ITEM_LIMIT 1024u
 
@@ -53,6 +55,73 @@ BitcoinOutputType bitcoin_classify_output_script(const uint8_t *script, size_t l
     if (length == 34u && script[0] == 0x00u && script[1] == 0x20u) return BITCOIN_OUTPUT_P2WSH;
     if (length == 34u && script[0] == 0x51u && script[1] == 0x20u) return BITCOIN_OUTPUT_P2TR;
     return BITCOIN_OUTPUT_UNKNOWN;
+}
+
+static uint32_t bech32_polymod_step(uint32_t checksum, uint8_t value) {
+    static const uint32_t generator[5] = { 0x3B6A57B2u, 0x26508E6Du, 0x1EA119FAu, 0x3D4233DDu, 0x2A1462B3u };
+    uint8_t index;
+    uint32_t top = checksum >> 25;
+
+    checksum = ((checksum & 0x1FFFFFFu) << 5) ^ value;
+    for (index = 0u; index < 5u; index++) {
+        if ((top >> index) & 1u) checksum ^= generator[index];
+    }
+    return checksum;
+}
+
+static uint32_t bech32_hrp_polymod(const char *hrp) {
+    uint32_t checksum = 1u;
+    size_t index;
+
+    for (index = 0u; hrp[index] != '\0'; index++) checksum = bech32_polymod_step(checksum, (uint8_t)(hrp[index] >> 5));
+    checksum = bech32_polymod_step(checksum, 0u);
+    for (index = 0u; hrp[index] != '\0'; index++) checksum = bech32_polymod_step(checksum, (uint8_t)(hrp[index] & 31));
+    return checksum;
+}
+
+int bitcoin_encode_mainnet_segwit_address(const uint8_t *script, size_t length, char *output, size_t output_capacity) {
+    uint8_t data[66];
+    uint8_t version;
+    uint8_t program_length;
+    uint32_t accumulator = 0u;
+    uint8_t bits = 0u;
+    uint8_t data_length = 1u;
+    uint8_t byte_index;
+    uint8_t checksum_index;
+    uint32_t polymod;
+    uint32_t encoding_constant;
+    size_t output_index = 0u;
+
+    if (script == 0 || output == 0 || length < 4u) return 0;
+    if (script[0] == 0x00u) version = 0u;
+    else if (script[0] >= 0x51u && script[0] <= 0x60u) version = (uint8_t)(script[0] - 0x50u);
+    else return 0;
+    program_length = script[1];
+    if ((size_t)program_length + 2u != length || program_length < 2u || program_length > 40u) return 0;
+    if (version == 0u && program_length != 20u && program_length != 32u) return 0;
+    data[0] = version;
+    for (byte_index = 0u; byte_index < program_length; byte_index++) {
+        accumulator = (accumulator << 8) | script[byte_index + 2u];
+        bits = (uint8_t)(bits + 8u);
+        while (bits >= 5u) {
+            bits = (uint8_t)(bits - 5u);
+            data[data_length++] = (uint8_t)((accumulator >> bits) & 31u);
+        }
+    }
+    if (bits != 0u) data[data_length++] = (uint8_t)((accumulator << (5u - bits)) & 31u);
+    if (output_capacity < (size_t)data_length + 9u || (size_t)data_length + 9u > 90u) return 0;
+    output[output_index++] = 'b';
+    output[output_index++] = 'c';
+    output[output_index++] = '1';
+    for (byte_index = 0u; byte_index < data_length; byte_index++) output[output_index++] = bech32_charset[data[byte_index]];
+    polymod = bech32_hrp_polymod("bc");
+    for (byte_index = 0u; byte_index < data_length; byte_index++) polymod = bech32_polymod_step(polymod, data[byte_index]);
+    for (checksum_index = 0u; checksum_index < 6u; checksum_index++) polymod = bech32_polymod_step(polymod, 0u);
+    encoding_constant = version == 0u ? 1u : 0x2BC830A3u;
+    polymod ^= encoding_constant;
+    for (checksum_index = 0u; checksum_index < 6u; checksum_index++) output[output_index++] = bech32_charset[(polymod >> (5u * (5u - checksum_index))) & 31u];
+    output[output_index] = '\0';
+    return 1;
 }
 
 static PsbtStatus parse_unsigned_transaction(const uint8_t *data, uint32_t length, PsbtFileInfo *info) {
