@@ -204,6 +204,63 @@ static PsbtReviewStatus skip_map(const uint8_t *data, size_t length, size_t *off
     return PSBT_REVIEW_MAP_TRUNCATED;
 }
 
+static PsbtReviewStatus skip_plain_map(const uint8_t *data, size_t length, size_t *offset) {
+    uint32_t key_length;
+    uint32_t value_length;
+    PsbtReviewStatus status;
+
+    while (*offset < length) {
+        status = read_compact_size(data, length, offset, &key_length);
+        if (status != PSBT_REVIEW_OK) return status;
+        if (key_length == 0u) return PSBT_REVIEW_OK;
+        if (key_length > length - *offset) return PSBT_REVIEW_MAP_TRUNCATED;
+        *offset += key_length;
+        status = read_compact_size(data, length, offset, &value_length);
+        if (status != PSBT_REVIEW_OK || value_length > length - *offset) return PSBT_REVIEW_MAP_TRUNCATED;
+        *offset += value_length;
+    }
+    return PSBT_REVIEW_MAP_TRUNCATED;
+}
+
+static PsbtReviewStatus parse_v2_output_map(const uint8_t *data, size_t length, size_t *offset, PsbtOutputReview *output) {
+    uint32_t key_length;
+    uint32_t value_length;
+    uint8_t key_type;
+    uint8_t saw_amount = 0u;
+    uint8_t saw_script = 0u;
+    PsbtReviewStatus status;
+
+    memset(output, 0, sizeof(*output));
+    while (*offset < length) {
+        status = read_compact_size(data, length, offset, &key_length);
+        if (status != PSBT_REVIEW_OK) return status;
+        if (key_length == 0u) return saw_amount && saw_script ? PSBT_REVIEW_OK : PSBT_REVIEW_MAP_TRUNCATED;
+        if (key_length != 1u || key_length > length - *offset) return PSBT_REVIEW_MAP_TRUNCATED;
+        key_type = data[*offset];
+        *offset += key_length;
+        status = read_compact_size(data, length, offset, &value_length);
+        if (status != PSBT_REVIEW_OK || value_length > length - *offset) return PSBT_REVIEW_MAP_TRUNCATED;
+        if (key_type == 0x03u) {
+            if (saw_amount || value_length != 8u) return PSBT_REVIEW_DUPLICATE_FIELD;
+            output->amount_sats = read_u64_le(data + *offset);
+            saw_amount = 1u;
+        } else if (key_type == 0x04u) {
+            if (saw_script || value_length > sizeof(output->script)) return PSBT_REVIEW_DUPLICATE_FIELD;
+            output->script_length = (uint8_t)value_length;
+            memcpy(output->script, data + *offset, output->script_length);
+            output->type = bitcoin_classify_output_script(output->script, output->script_length);
+            if (output->type == BITCOIN_OUTPUT_P2PKH || output->type == BITCOIN_OUTPUT_P2SH) {
+                (void)bitcoin_encode_mainnet_legacy_address(output->script, output->script_length, output->address, sizeof(output->address));
+            } else if (output->type == BITCOIN_OUTPUT_P2WPKH || output->type == BITCOIN_OUTPUT_P2WSH || output->type == BITCOIN_OUTPUT_P2TR) {
+                (void)bitcoin_encode_mainnet_segwit_address(output->script, output->script_length, output->address, sizeof(output->address));
+            }
+            saw_script = 1u;
+        }
+        *offset += value_length;
+    }
+    return PSBT_REVIEW_MAP_TRUNCATED;
+}
+
 PsbtReviewStatus psbt_parse_v0_review(const uint8_t *data, size_t length, PsbtReview *review) {
     size_t offset = sizeof(psbt_magic);
     uint32_t key_length;
@@ -261,6 +318,43 @@ PsbtReviewStatus psbt_parse_v0_review(const uint8_t *data, size_t length, PsbtRe
         review->fee_is_known = 1u;
     }
     return PSBT_REVIEW_OK;
+}
+
+PsbtReviewStatus psbt_parse_v2_review(const uint8_t *data, size_t length, PsbtReview *review) {
+    PsbtFileInfo info = { 0u, 0u, 0u, PSBT_VERSION_UNKNOWN, 0u, 0u, 0u, 0u };
+    size_t offset = sizeof(psbt_magic);
+    uint32_t key_length;
+    uint32_t value_length;
+    uint16_t index;
+    PsbtReviewStatus status;
+
+    if (psbt_validate_envelope(data, length, &info) != PSBT_STATUS_OK || info.version != PSBT_VERSION_V2) return PSBT_REVIEW_UNSUPPORTED_VERSION;
+    if (info.input_count > PSBT_REVIEW_MAX_INPUTS || info.output_count > PSBT_REVIEW_MAX_OUTPUTS) return PSBT_REVIEW_TRANSACTION_LIMIT;
+    memset(review, 0, sizeof(*review));
+    review->version = PSBT_VERSION_V2;
+    review->input_count = info.input_count;
+    review->output_count = info.output_count;
+    while (offset < length) {
+        status = read_compact_size(data, length, &offset, &key_length);
+        if (status != PSBT_REVIEW_OK) return status;
+        if (key_length == 0u) break;
+        if (key_length > length - offset) return PSBT_REVIEW_MAP_TRUNCATED;
+        offset += key_length;
+        status = read_compact_size(data, length, &offset, &value_length);
+        if (status != PSBT_REVIEW_OK || value_length > length - offset) return PSBT_REVIEW_MAP_TRUNCATED;
+        offset += value_length;
+    }
+    for (index = 0u; index < review->input_count; index++) {
+        status = skip_plain_map(data, length, &offset);
+        if (status != PSBT_REVIEW_OK) return status;
+    }
+    for (index = 0u; index < review->output_count; index++) {
+        status = parse_v2_output_map(data, length, &offset, &review->outputs[index]);
+        if (status != PSBT_REVIEW_OK) return status;
+        if (UINT64_MAX - review->total_output_sats < review->outputs[index].amount_sats) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+        review->total_output_sats += review->outputs[index].amount_sats;
+    }
+    return offset == length ? PSBT_REVIEW_OK : PSBT_REVIEW_MAP_TRUNCATED;
 }
 
 const char *psbt_review_status_message(PsbtReviewStatus status) {

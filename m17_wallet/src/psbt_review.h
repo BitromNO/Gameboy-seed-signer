@@ -50,6 +50,7 @@ typedef struct PsbtReview {
 } PsbtReview;
 
 PsbtReviewStatus psbt_parse_v0_review(const uint8_t *data, size_t length, PsbtReview *review);
+PsbtReviewStatus psbt_parse_v2_review(const uint8_t *data, size_t length, PsbtReview *review);
 const char *psbt_review_status_message(PsbtReviewStatus status);
 
 #endif

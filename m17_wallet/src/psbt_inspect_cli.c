@@ -109,14 +109,16 @@ int main(int argc, char *argv[]) {
     printf("Outputs: %u\n", info.output_count);
     if (info.version == PSBT_VERSION_V0) printf("Output total (sats): %llu\n", (unsigned long long)info.total_output_sats);
     printf("Recognized outputs: %u\n", info.recognized_output_count);
-    if (info.version == PSBT_VERSION_V0) {
+    if (info.version == PSBT_VERSION_V0 || info.version == PSBT_VERSION_V2) {
         file = fopen(psbt_path, "rb");
         if (file == NULL) return 2;
         data = malloc((size_t)file_size);
         if (data == NULL && file_size != 0L) { fclose(file); return 2; }
         if ((size_t)file_size != fread(data, 1u, (size_t)file_size, file)) { free(data); fclose(file); return 2; }
         fclose(file);
-        review_status = psbt_parse_v0_review(data, (size_t)file_size, &review);
+        review_status = info.version == PSBT_VERSION_V0 ?
+            psbt_parse_v0_review(data, (size_t)file_size, &review) :
+            psbt_parse_v2_review(data, (size_t)file_size, &review);
         free(data);
         if (review_status != PSBT_REVIEW_OK) {
             fprintf(stderr, "Review unavailable: %s\n", psbt_review_status_message(review_status));
@@ -130,6 +132,7 @@ int main(int argc, char *argv[]) {
             printf("\n");
         }
         if (review.fee_is_known) printf("Fee (sats): %llu\n", (unsigned long long)review.fee_sats);
+        else if (info.version == PSBT_VERSION_V2) printf("Fee: unavailable (v2 input validation pending)\n");
         else printf("Fee: unavailable (input amounts incomplete)\n");
     }
     return 0;
