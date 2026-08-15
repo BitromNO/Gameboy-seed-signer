@@ -33,6 +33,26 @@ static size_t build_review_fixture(uint8_t data[256]) {
     return offset;
 }
 
+static size_t build_non_witness_review_fixture(uint8_t data[256]) {
+    uint8_t transaction[256];
+    size_t transaction_psbt_length = build_review_fixture(transaction);
+    size_t transaction_length = 0x52u;
+    size_t offset = 0u;
+
+    data[offset++] = 0x70u; data[offset++] = 0x73u; data[offset++] = 0x62u; data[offset++] = 0x74u; data[offset++] = 0xFFu;
+    data[offset++] = 0x01u; data[offset++] = 0x00u; data[offset++] = 0x52u;
+    memcpy(data + offset, transaction + 8u, transaction_length);
+    offset += transaction_length;
+    data[offset++] = 0x00u;
+    data[offset++] = 0x01u; data[offset++] = 0x00u; data[offset++] = 0x52u;
+    memcpy(data + offset, transaction + 8u, transaction_length);
+    offset += transaction_length;
+    data[offset++] = 0x00u;
+    data[offset++] = 0x00u;
+    assert(transaction_psbt_length > transaction_length);
+    return offset;
+}
+
 int main(void) {
     static const uint8_t valid_psbt_v0[] = {
         0x70u, 0x73u, 0x62u, 0x74u, 0xFFu, 0x01u, 0x00u, 0x3Cu,
@@ -71,8 +91,10 @@ int main(void) {
     char address[91];
     uint8_t digest[32];
     uint8_t review_fixture[256];
+    uint8_t non_witness_review_fixture[256];
     PsbtReview review;
     size_t review_length;
+    size_t non_witness_review_length;
     static const uint8_t sha256_abc[32] = { 0xBAu, 0x78u, 0x16u, 0xBFu, 0x8Fu, 0x01u, 0xCFu, 0xEAu, 0x41u, 0x41u, 0x40u, 0xDEu, 0x5Du, 0xAEu, 0x22u, 0x23u, 0xB0u, 0x03u, 0x61u, 0xA3u, 0x96u, 0x17u, 0x7Au, 0x9Cu, 0xB4u, 0x10u, 0xFFu, 0x61u, 0xF2u, 0x00u, 0x15u, 0xADu };
 
     assert(psbt_validate_envelope(valid_psbt_v0, sizeof(valid_psbt_v0), &info) == PSBT_STATUS_OK);
@@ -107,6 +129,12 @@ int main(void) {
     assert(review.fee_sats == 1000u);
     assert(review.outputs[0].type == BITCOIN_OUTPUT_P2WPKH);
     assert(strcmp(review.outputs[0].address, "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4") == 0);
+    non_witness_review_length = build_non_witness_review_fixture(non_witness_review_fixture);
+    assert(psbt_parse_v0_review(non_witness_review_fixture, non_witness_review_length, &review) == PSBT_REVIEW_OK);
+    assert(review.known_input_amount_count == 1u);
+    assert(review.total_input_sats == 1000u);
+    assert(review.fee_is_known == 1u);
+    assert(review.fee_sats == 0u);
     assert(psbt_validate_envelope(valid_psbt_v2, sizeof(valid_psbt_v2), &info) == PSBT_STATUS_OK);
     assert(info.version == PSBT_VERSION_V2);
     assert(info.input_count == 1u);

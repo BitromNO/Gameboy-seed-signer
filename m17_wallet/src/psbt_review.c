@@ -36,6 +36,10 @@ static uint64_t read_u64_le(const uint8_t *data) {
            ((uint64_t)data[4] << 32) | ((uint64_t)data[5] << 40) | ((uint64_t)data[6] << 48) | ((uint64_t)data[7] << 56);
 }
 
+static uint32_t read_u32_le(const uint8_t *data) {
+    return (uint32_t)data[0] | ((uint32_t)data[1] << 8) | ((uint32_t)data[2] << 16) | ((uint32_t)data[3] << 24);
+}
+
 static PsbtReviewStatus skip_bytes(size_t length, size_t *offset, uint32_t count) {
     if (count > length - *offset) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
     *offset += count;
@@ -77,6 +81,7 @@ static PsbtReviewStatus parse_unsigned_transaction(const uint8_t *data, size_t l
     for (index = 0u; index < input_count; index++) {
         status = skip_bytes(length, &offset, 36u);
         if (status != PSBT_REVIEW_OK) return status;
+        review->inputs[index].previous_output_index = read_u32_le(data + offset - 4u);
         status = read_compact_size(data, length, &offset, &script_length);
         if (status != PSBT_REVIEW_OK) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
         status = skip_bytes(length, &offset, script_length);
@@ -113,11 +118,48 @@ static PsbtReviewStatus parse_witness_utxo(const uint8_t *data, size_t length, u
     return offset == length ? PSBT_REVIEW_OK : PSBT_REVIEW_TRANSACTION_TRUNCATED;
 }
 
-static PsbtReviewStatus skip_map(const uint8_t *data, size_t length, size_t *offset, uint8_t is_input, PsbtReview *review) {
+static PsbtReviewStatus parse_non_witness_utxo(const uint8_t *data, size_t length, uint32_t wanted_output, uint64_t *amount) {
+    size_t offset = 0u;
+    uint32_t input_count;
+    uint32_t output_count;
+    uint32_t script_length;
+    uint32_t index;
+    PsbtReviewStatus status;
+
+    if (length < 10u) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+    offset = 4u;
+    status = read_compact_size(data, length, &offset, &input_count);
+    if (status != PSBT_REVIEW_OK) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+    for (index = 0u; index < input_count; index++) {
+        status = skip_bytes(length, &offset, 36u);
+        if (status != PSBT_REVIEW_OK) return status;
+        status = read_compact_size(data, length, &offset, &script_length);
+        if (status != PSBT_REVIEW_OK) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+        status = skip_bytes(length, &offset, script_length);
+        if (status != PSBT_REVIEW_OK) return status;
+        status = skip_bytes(length, &offset, 4u);
+        if (status != PSBT_REVIEW_OK) return status;
+    }
+    status = read_compact_size(data, length, &offset, &output_count);
+    if (status != PSBT_REVIEW_OK || wanted_output >= output_count) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+    for (index = 0u; index < output_count; index++) {
+        if (length - offset < 8u) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+        if (index == wanted_output) *amount = read_u64_le(data + offset);
+        offset += 8u;
+        status = read_compact_size(data, length, &offset, &script_length);
+        if (status != PSBT_REVIEW_OK) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+        status = skip_bytes(length, &offset, script_length);
+        if (status != PSBT_REVIEW_OK) return status;
+    }
+    return length - offset == 4u ? PSBT_REVIEW_OK : PSBT_REVIEW_TRANSACTION_TRUNCATED;
+}
+
+static PsbtReviewStatus skip_map(const uint8_t *data, size_t length, size_t *offset, uint8_t is_input, uint16_t input_index, PsbtReview *review) {
     uint32_t key_length;
     uint32_t value_length;
     uint8_t key_type;
     uint8_t saw_witness_utxo = 0u;
+    uint8_t saw_non_witness_utxo = 0u;
     PsbtReviewStatus status;
 
     while (*offset < length) {
@@ -130,6 +172,10 @@ static PsbtReviewStatus skip_map(const uint8_t *data, size_t length, size_t *off
             if (saw_witness_utxo) return PSBT_REVIEW_DUPLICATE_FIELD;
             saw_witness_utxo = 1u;
         }
+        if (is_input && key_length == 1u && key_type == 0x00u) {
+            if (saw_non_witness_utxo) return PSBT_REVIEW_DUPLICATE_FIELD;
+            saw_non_witness_utxo = 1u;
+        }
         *offset += key_length;
         status = read_compact_size(data, length, offset, &value_length);
         if (status != PSBT_REVIEW_OK || value_length > length - *offset) return PSBT_REVIEW_MAP_TRUNCATED;
@@ -138,8 +184,17 @@ static PsbtReviewStatus skip_map(const uint8_t *data, size_t length, size_t *off
             status = parse_witness_utxo(data + *offset, value_length, &amount);
             if (status != PSBT_REVIEW_OK) return status;
             if (UINT64_MAX - review->total_input_sats < amount) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
-            review->total_input_sats += amount;
-            review->known_input_amount_count++;
+            if (review->inputs[input_index].amount_is_known) return PSBT_REVIEW_DUPLICATE_FIELD;
+            review->inputs[input_index].amount_sats = amount;
+            review->inputs[input_index].amount_is_known = 1u;
+        }
+        if (is_input && key_length == 1u && key_type == 0x00u) {
+            uint64_t amount;
+            status = parse_non_witness_utxo(data + *offset, value_length, review->inputs[input_index].previous_output_index, &amount);
+            if (status != PSBT_REVIEW_OK) return status;
+            if (review->inputs[input_index].amount_is_known) return PSBT_REVIEW_DUPLICATE_FIELD;
+            review->inputs[input_index].amount_sats = amount;
+            review->inputs[input_index].amount_is_known = 1u;
         }
         *offset += value_length;
     }
@@ -183,14 +238,21 @@ PsbtReviewStatus psbt_parse_v0_review(const uint8_t *data, size_t length, PsbtRe
     status = parse_unsigned_transaction(unsigned_transaction, unsigned_transaction_length, review);
     if (status != PSBT_REVIEW_OK) return status;
     for (index = 0u; index < review->input_count; index++) {
-        status = skip_map(data, length, &offset, 1u, review);
+        status = skip_map(data, length, &offset, 1u, index, review);
         if (status != PSBT_REVIEW_OK) return status;
     }
     for (index = 0u; index < review->output_count; index++) {
-        status = skip_map(data, length, &offset, 0u, review);
+        status = skip_map(data, length, &offset, 0u, 0u, review);
         if (status != PSBT_REVIEW_OK) return status;
     }
     if (offset != length) return PSBT_REVIEW_MAP_TRUNCATED;
+    for (index = 0u; index < review->input_count; index++) {
+        if (review->inputs[index].amount_is_known) {
+            if (UINT64_MAX - review->total_input_sats < review->inputs[index].amount_sats) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+            review->total_input_sats += review->inputs[index].amount_sats;
+            review->known_input_amount_count++;
+        }
+    }
     if (review->known_input_amount_count == review->input_count && review->total_input_sats >= review->total_output_sats) {
         review->fee_sats = review->total_input_sats - review->total_output_sats;
         review->fee_is_known = 1u;

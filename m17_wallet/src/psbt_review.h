@@ -27,6 +27,12 @@ typedef struct PsbtOutputReview {
     char address[PSBT_REVIEW_ADDRESS_MAX];
 } PsbtOutputReview;
 
+typedef struct PsbtInputReview {
+    uint32_t previous_output_index;
+    uint8_t amount_is_known;
+    uint64_t amount_sats;
+} PsbtInputReview;
+
 typedef struct PsbtReview {
     PsbtVersion version;
     uint16_t input_count;
@@ -36,6 +42,7 @@ typedef struct PsbtReview {
     uint64_t total_output_sats;
     uint64_t fee_sats;
     uint8_t fee_is_known;
+    PsbtInputReview inputs[PSBT_REVIEW_MAX_INPUTS];
     PsbtOutputReview outputs[PSBT_REVIEW_MAX_OUTPUTS];
 } PsbtReview;
 
