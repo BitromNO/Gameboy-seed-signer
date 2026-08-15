@@ -23,6 +23,17 @@ cd m17_wallet
 make test
 ```
 
+## Host Inspector
+
+The host-only inspector exercises the same read-only parser that will later power the M17 review screen:
+
+```sh
+make inspect
+./build/psbt-inspect unsigned.psbt
+```
+
+It prints only structural metadata and rejects malformed files. It does not sign, modify, or export PSBTs.
+
 ## Intended Workflow
 
 ```text
