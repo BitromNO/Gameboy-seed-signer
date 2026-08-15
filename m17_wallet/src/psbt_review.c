@@ -77,11 +77,14 @@ static PsbtReviewStatus parse_unsigned_transaction(const uint8_t *data, size_t l
     PsbtReviewStatus status;
 
     if (length < 10u) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+    review->transaction_version = read_u32_le(data);
     offset = 4u;
     status = read_compact_size(data, length, &offset, &input_count);
     if (status != PSBT_REVIEW_OK) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
     if (input_count == 0u || input_count > PSBT_REVIEW_MAX_INPUTS) return PSBT_REVIEW_TRANSACTION_LIMIT;
     for (index = 0u; index < input_count; index++) {
+        if (length - offset < 36u) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+        memcpy(review->inputs[index].previous_transaction_id, data + offset, 32u);
         status = skip_bytes(length, &offset, 36u);
         if (status != PSBT_REVIEW_OK) return status;
         review->inputs[index].previous_output_index = read_u32_le(data + offset - 4u);
@@ -89,8 +92,9 @@ static PsbtReviewStatus parse_unsigned_transaction(const uint8_t *data, size_t l
         if (status != PSBT_REVIEW_OK) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
         status = skip_bytes(length, &offset, script_length);
         if (status != PSBT_REVIEW_OK) return status;
-        status = skip_bytes(length, &offset, 4u);
-        if (status != PSBT_REVIEW_OK) return status;
+        if (length - offset < 4u) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+        review->inputs[index].sequence = read_u32_le(data + offset);
+        offset += 4u;
     }
     status = read_compact_size(data, length, &offset, &output_count);
     if (status != PSBT_REVIEW_OK) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
@@ -102,6 +106,7 @@ static PsbtReviewStatus parse_unsigned_transaction(const uint8_t *data, size_t l
         review->total_output_sats += review->outputs[index].amount_sats;
     }
     if (length - offset != 4u) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+    review->locktime = read_u32_le(data + offset);
     review->input_count = (uint16_t)input_count;
     review->output_count = (uint16_t)output_count;
     return PSBT_REVIEW_OK;

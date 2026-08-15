@@ -131,6 +131,10 @@ int main(int argc, char *argv[]) {
             if (review.outputs[output_index].is_change) printf(" [CHANGE]");
             printf("\n");
         }
+        if (info.version == PSBT_VERSION_V0) {
+            printf("Transaction version: %u\n", review.transaction_version);
+            printf("Locktime: %u\n", review.locktime);
+        }
         if (review.fee_is_known) printf("Fee (sats): %llu\n", (unsigned long long)review.fee_sats);
         else printf("Fee: unavailable (input amounts incomplete)\n");
     }

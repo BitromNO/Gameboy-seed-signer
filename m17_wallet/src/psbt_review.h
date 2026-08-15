@@ -31,13 +31,17 @@ typedef struct PsbtOutputReview {
 } PsbtOutputReview;
 
 typedef struct PsbtInputReview {
+    uint8_t previous_transaction_id[32];
     uint32_t previous_output_index;
+    uint32_t sequence;
     uint8_t amount_is_known;
     uint64_t amount_sats;
 } PsbtInputReview;
 
 typedef struct PsbtReview {
     PsbtVersion version;
+    uint32_t transaction_version;
+    uint32_t locktime;
     uint16_t input_count;
     uint16_t output_count;
     uint16_t known_input_amount_count;

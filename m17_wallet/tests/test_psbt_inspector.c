@@ -153,6 +153,10 @@ int main(void) {
     assert(psbt_parse_v0_review(review_fixture, review_length, &review) == PSBT_REVIEW_OK);
     assert(review.input_count == 1u);
     assert(review.output_count == 1u);
+    assert(review.transaction_version == 1u);
+    assert(review.locktime == 0u);
+    assert(review.inputs[0].previous_output_index == 0u);
+    assert(review.inputs[0].sequence == 0xFFFFFFFFu);
     assert(review.known_input_amount_count == 1u);
     assert(review.total_input_sats == 2000u);
     assert(review.total_output_sats == 1000u);
