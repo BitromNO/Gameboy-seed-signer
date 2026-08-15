@@ -1,6 +1,8 @@
 #include "psbt_inspector.h"
+#include "sha256.h"
 
 static const char bech32_charset[] = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+static const char base58_charset[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 static const uint8_t psbt_magic[] = { 0x70u, 0x73u, 0x62u, 0x74u, 0xFFu };
 #define PSBT_TRANSACTION_ITEM_LIMIT 1024u
@@ -120,6 +122,49 @@ int bitcoin_encode_mainnet_segwit_address(const uint8_t *script, size_t length, 
     encoding_constant = version == 0u ? 1u : 0x2BC830A3u;
     polymod ^= encoding_constant;
     for (checksum_index = 0u; checksum_index < 6u; checksum_index++) output[output_index++] = bech32_charset[(polymod >> (5u * (5u - checksum_index))) & 31u];
+    output[output_index] = '\0';
+    return 1;
+}
+
+int bitcoin_encode_mainnet_legacy_address(const uint8_t *script, size_t length, char *output, size_t output_capacity) {
+    uint8_t payload[25];
+    uint8_t first_hash[32];
+    uint8_t second_hash[32];
+    uint8_t encoded[35];
+    uint8_t working[25];
+    uint8_t length_encoded = 0u;
+    uint8_t leading_zeroes = 0u;
+    uint8_t original_zeroes;
+    uint8_t index;
+    uint8_t quotient;
+    uint16_t remainder;
+    size_t output_index = 0u;
+
+    if (script == 0 || output == 0 || output_capacity < 35u) return 0;
+    if (bitcoin_classify_output_script(script, length) == BITCOIN_OUTPUT_P2PKH) payload[0] = 0x00u;
+    else if (bitcoin_classify_output_script(script, length) == BITCOIN_OUTPUT_P2SH) payload[0] = 0x05u;
+    else return 0;
+    for (index = 0u; index < 20u; index++) payload[index + 1u] = script[index + 3u];
+    sha256_digest(payload, 21u, first_hash);
+    sha256_digest(first_hash, sizeof(first_hash), second_hash);
+    for (index = 0u; index < 4u; index++) payload[index + 21u] = second_hash[index];
+    for (index = 0u; index < sizeof(payload); index++) working[index] = payload[index];
+    while (leading_zeroes < sizeof(working) && working[leading_zeroes] == 0u) leading_zeroes++;
+    original_zeroes = leading_zeroes;
+    while (leading_zeroes < sizeof(working)) {
+        remainder = 0u;
+        for (index = leading_zeroes; index < sizeof(working); index++) {
+            remainder = (uint16_t)(remainder * 256u + working[index]);
+            quotient = (uint8_t)(remainder / 58u);
+            remainder %= 58u;
+            working[index] = quotient;
+        }
+        encoded[length_encoded++] = (uint8_t)base58_charset[remainder];
+        while (leading_zeroes < sizeof(working) && working[leading_zeroes] == 0u) leading_zeroes++;
+    }
+    while (original_zeroes-- != 0u) encoded[length_encoded++] = '1';
+    if ((size_t)length_encoded + 1u > output_capacity) return 0;
+    while (length_encoded != 0u) output[output_index++] = (char)encoded[--length_encoded];
     output[output_index] = '\0';
     return 1;
 }

@@ -52,6 +52,7 @@ typedef struct PsbtFileInfo {
 PsbtStatus psbt_validate_envelope(const uint8_t *data, size_t length, PsbtFileInfo *info);
 BitcoinOutputType bitcoin_classify_output_script(const uint8_t *script, size_t length);
 int bitcoin_encode_mainnet_segwit_address(const uint8_t *script, size_t length, char *output, size_t output_capacity);
+int bitcoin_encode_mainnet_legacy_address(const uint8_t *script, size_t length, char *output, size_t output_capacity);
 const char *psbt_status_message(PsbtStatus status);
 
 #endif

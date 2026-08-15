@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "psbt_inspector.h"
+#include "sha256.h"
 
 int main(void) {
     static const uint8_t valid_psbt_v0[] = {
@@ -32,6 +33,7 @@ int main(void) {
     static const uint8_t non_canonical_psbt[] = { 0x70u, 0x73u, 0x62u, 0x74u, 0xFFu, 0xFDu, 0x01u, 0x00u };
     static const uint8_t unterminated_psbt[] = { 0x70u, 0x73u, 0x62u, 0x74u, 0xFFu, 0x01u, 0xFCu, 0x00u };
     static const uint8_t p2pkh[] = { 0x76u, 0xA9u, 0x14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0x88u, 0xACu };
+    static const uint8_t bip173_p2pkh[] = { 0x76u, 0xA9u, 0x14u, 0x75u, 0x1Eu, 0x76u, 0xE8u, 0x19u, 0x91u, 0x96u, 0xD4u, 0x54u, 0x94u, 0x1Cu, 0x45u, 0xD1u, 0xB3u, 0xA3u, 0x23u, 0xF1u, 0x43u, 0x3Bu, 0xD6u, 0x88u, 0xACu };
     static const uint8_t p2wpkh[] = { 0x00u, 0x14u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u };
     static const uint8_t p2tr[] = { 0x51u, 0x20u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u };
     static const uint8_t op_return[] = { 0x6Au, 0x02u, 0x01u, 0x02u };
@@ -39,6 +41,8 @@ int main(void) {
     static const uint8_t bip350_p2tr[] = { 0x51u, 0x20u, 0x79u, 0xBEu, 0x66u, 0x7Eu, 0xF9u, 0xDCu, 0xBBu, 0xACu, 0x55u, 0xA0u, 0x62u, 0x95u, 0xCEu, 0x87u, 0x0Bu, 0x07u, 0x02u, 0x9Bu, 0xFCu, 0xDBu, 0x2Du, 0xCEu, 0x28u, 0xD9u, 0x59u, 0xF2u, 0x81u, 0x5Bu, 0x16u, 0xF8u, 0x17u, 0x98u };
     PsbtFileInfo info = { 0u, 0u, 0u, PSBT_VERSION_UNKNOWN, 0u, 0u, 0u, 0u };
     char address[91];
+    uint8_t digest[32];
+    static const uint8_t sha256_abc[32] = { 0xBAu, 0x78u, 0x16u, 0xBFu, 0x8Fu, 0x01u, 0xCFu, 0xEAu, 0x41u, 0x41u, 0x40u, 0xDEu, 0x5Du, 0xAEu, 0x22u, 0x23u, 0xB0u, 0x03u, 0x61u, 0xA3u, 0x96u, 0x17u, 0x7Au, 0x9Cu, 0xB4u, 0x10u, 0xFFu, 0x61u, 0xF2u, 0x00u, 0x15u, 0xADu };
 
     assert(psbt_validate_envelope(valid_psbt_v0, sizeof(valid_psbt_v0), &info) == PSBT_STATUS_OK);
     assert(info.byte_count == sizeof(valid_psbt_v0));
@@ -57,6 +61,10 @@ int main(void) {
     assert(strcmp(address, "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4") == 0);
     assert(bitcoin_encode_mainnet_segwit_address(bip350_p2tr, sizeof(bip350_p2tr), address, sizeof(address)) == 1);
     assert(strcmp(address, "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0") == 0);
+    assert(bitcoin_encode_mainnet_legacy_address(bip173_p2pkh, sizeof(bip173_p2pkh), address, sizeof(address)) == 1);
+    assert(strcmp(address, "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH") == 0);
+    sha256_digest((const uint8_t *)"abc", 3u, digest);
+    assert(memcmp(digest, sha256_abc, sizeof(digest)) == 0);
     assert(psbt_validate_envelope(valid_psbt_v2, sizeof(valid_psbt_v2), &info) == PSBT_STATUS_OK);
     assert(info.version == PSBT_VERSION_V2);
     assert(info.input_count == 1u);
