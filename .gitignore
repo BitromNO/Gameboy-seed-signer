@@ -13,3 +13,5 @@ gameboy_wallet/*.sym
 *seed*.txt
 *seed*.json
 *private*.txt
+# M17 host build outputs
+m17_wallet/build/
