@@ -132,7 +132,6 @@ int main(int argc, char *argv[]) {
             printf("\n");
         }
         if (review.fee_is_known) printf("Fee (sats): %llu\n", (unsigned long long)review.fee_sats);
-        else if (info.version == PSBT_VERSION_V2) printf("Fee: unavailable (v2 input validation pending)\n");
         else printf("Fee: unavailable (input amounts incomplete)\n");
     }
     return 0;

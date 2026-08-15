@@ -204,22 +204,81 @@ static PsbtReviewStatus skip_map(const uint8_t *data, size_t length, size_t *off
     return PSBT_REVIEW_MAP_TRUNCATED;
 }
 
-static PsbtReviewStatus skip_plain_map(const uint8_t *data, size_t length, size_t *offset) {
+static PsbtReviewStatus parse_v2_input_map(const uint8_t *data, size_t length, size_t *offset, PsbtInputReview *input) {
     uint32_t key_length;
     uint32_t value_length;
+    uint8_t key_type;
+    uint8_t saw_previous_txid = 0u;
+    uint8_t saw_previous_index = 0u;
+    const uint8_t *witness_utxo = 0;
+    uint32_t witness_utxo_length = 0u;
+    const uint8_t *non_witness_utxo = 0;
+    uint32_t non_witness_utxo_length = 0u;
     PsbtReviewStatus status;
 
+    memset(input, 0, sizeof(*input));
     while (*offset < length) {
         status = read_compact_size(data, length, offset, &key_length);
         if (status != PSBT_REVIEW_OK) return status;
-        if (key_length == 0u) return PSBT_REVIEW_OK;
-        if (key_length > length - *offset) return PSBT_REVIEW_MAP_TRUNCATED;
+        if (key_length == 0u) break;
+        if (key_length != 1u || key_length > length - *offset) return PSBT_REVIEW_MAP_TRUNCATED;
+        key_type = data[*offset];
         *offset += key_length;
         status = read_compact_size(data, length, offset, &value_length);
         if (status != PSBT_REVIEW_OK || value_length > length - *offset) return PSBT_REVIEW_MAP_TRUNCATED;
+        if (key_type == 0x0Eu) {
+            if (saw_previous_txid || value_length != 32u) return PSBT_REVIEW_DUPLICATE_FIELD;
+            saw_previous_txid = 1u;
+        } else if (key_type == 0x0Fu) {
+            if (saw_previous_index || value_length != 4u) return PSBT_REVIEW_DUPLICATE_FIELD;
+            input->previous_output_index = read_u32_le(data + *offset);
+            saw_previous_index = 1u;
+        } else if (key_type == 0x01u) {
+            if (witness_utxo != 0) return PSBT_REVIEW_DUPLICATE_FIELD;
+            witness_utxo = data + *offset;
+            witness_utxo_length = value_length;
+        } else if (key_type == 0x00u) {
+            if (non_witness_utxo != 0) return PSBT_REVIEW_DUPLICATE_FIELD;
+            non_witness_utxo = data + *offset;
+            non_witness_utxo_length = value_length;
+        }
         *offset += value_length;
     }
-    return PSBT_REVIEW_MAP_TRUNCATED;
+    if (!saw_previous_txid || !saw_previous_index) return PSBT_REVIEW_MAP_TRUNCATED;
+    if (witness_utxo != 0 && non_witness_utxo != 0) return PSBT_REVIEW_DUPLICATE_FIELD;
+    if (witness_utxo != 0) {
+        uint64_t amount;
+        status = parse_witness_utxo(witness_utxo, witness_utxo_length, &amount);
+        if (status != PSBT_REVIEW_OK) return status;
+        input->amount_sats = amount;
+        input->amount_is_known = 1u;
+    } else if (non_witness_utxo != 0) {
+        uint64_t amount;
+        status = parse_non_witness_utxo(non_witness_utxo, non_witness_utxo_length, input->previous_output_index, &amount);
+        if (status != PSBT_REVIEW_OK) return status;
+        input->amount_sats = amount;
+        input->amount_is_known = 1u;
+    }
+    return PSBT_REVIEW_OK;
+}
+
+static PsbtReviewStatus finalize_input_amounts(PsbtReview *review) {
+    uint16_t index;
+
+    review->known_input_amount_count = 0u;
+    review->total_input_sats = 0u;
+    for (index = 0u; index < review->input_count; index++) {
+        if (review->inputs[index].amount_is_known) {
+            if (UINT64_MAX - review->total_input_sats < review->inputs[index].amount_sats) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
+            review->total_input_sats += review->inputs[index].amount_sats;
+            review->known_input_amount_count++;
+        }
+    }
+    if (review->known_input_amount_count == review->input_count && review->total_input_sats >= review->total_output_sats) {
+        review->fee_sats = review->total_input_sats - review->total_output_sats;
+        review->fee_is_known = 1u;
+    }
+    return PSBT_REVIEW_OK;
 }
 
 static PsbtReviewStatus parse_v2_output_map(const uint8_t *data, size_t length, size_t *offset, PsbtOutputReview *output) {
@@ -306,18 +365,7 @@ PsbtReviewStatus psbt_parse_v0_review(const uint8_t *data, size_t length, PsbtRe
         if (status != PSBT_REVIEW_OK) return status;
     }
     if (offset != length) return PSBT_REVIEW_MAP_TRUNCATED;
-    for (index = 0u; index < review->input_count; index++) {
-        if (review->inputs[index].amount_is_known) {
-            if (UINT64_MAX - review->total_input_sats < review->inputs[index].amount_sats) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
-            review->total_input_sats += review->inputs[index].amount_sats;
-            review->known_input_amount_count++;
-        }
-    }
-    if (review->known_input_amount_count == review->input_count && review->total_input_sats >= review->total_output_sats) {
-        review->fee_sats = review->total_input_sats - review->total_output_sats;
-        review->fee_is_known = 1u;
-    }
-    return PSBT_REVIEW_OK;
+    return finalize_input_amounts(review);
 }
 
 PsbtReviewStatus psbt_parse_v2_review(const uint8_t *data, size_t length, PsbtReview *review) {
@@ -345,7 +393,7 @@ PsbtReviewStatus psbt_parse_v2_review(const uint8_t *data, size_t length, PsbtRe
         offset += value_length;
     }
     for (index = 0u; index < review->input_count; index++) {
-        status = skip_plain_map(data, length, &offset);
+        status = parse_v2_input_map(data, length, &offset, &review->inputs[index]);
         if (status != PSBT_REVIEW_OK) return status;
     }
     for (index = 0u; index < review->output_count; index++) {
@@ -354,7 +402,8 @@ PsbtReviewStatus psbt_parse_v2_review(const uint8_t *data, size_t length, PsbtRe
         if (UINT64_MAX - review->total_output_sats < review->outputs[index].amount_sats) return PSBT_REVIEW_TRANSACTION_TRUNCATED;
         review->total_output_sats += review->outputs[index].amount_sats;
     }
-    return offset == length ? PSBT_REVIEW_OK : PSBT_REVIEW_MAP_TRUNCATED;
+    if (offset != length) return PSBT_REVIEW_MAP_TRUNCATED;
+    return finalize_input_amounts(review);
 }
 
 const char *psbt_review_status_message(PsbtReviewStatus status) {

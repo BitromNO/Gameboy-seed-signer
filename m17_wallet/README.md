@@ -44,7 +44,7 @@ Only an exact script match receives the `[CHANGE]` label. This option takes publ
 
 The in-progress review engine can retain up to 64 outputs, render recognized recipient scripts as mainnet addresses, and calculate a fee only when every input amount is supplied through one unambiguous `witness_utxo` or `non_witness_utxo` record. It does not infer a fee from incomplete input data.
 
-PSBT v2 output maps are also reviewed when they include their required amount and script fields. The v2 fee remains unavailable for now because its input prevout and UTXO relationships need a separate strict validation path.
+PSBT v2 output maps are reviewed when they include their required amount and script fields. A v2 fee is calculated only when every input includes its required prevout fields plus one unambiguous standard UTXO record.
 
 Change is not guessed. The policy layer marks an output as change only when its complete script exactly matches a wallet-owned script registered by a future trusted descriptor/derivation component. All non-matches remain unclassified until that component exists.
 

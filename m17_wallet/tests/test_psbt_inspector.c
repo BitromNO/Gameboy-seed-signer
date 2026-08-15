@@ -64,6 +64,14 @@ static size_t build_v2_review_fixture(uint8_t data[256]) {
     data[offset++] = 0x01u; data[offset++] = 0x04u; data[offset++] = 0x01u; data[offset++] = 0x01u;
     data[offset++] = 0x01u; data[offset++] = 0x05u; data[offset++] = 0x01u; data[offset++] = 0x01u;
     data[offset++] = 0x00u;
+    data[offset++] = 0x01u; data[offset++] = 0x0Eu; data[offset++] = 0x20u;
+    for (index = 0u; index < 32u; index++) data[offset++] = 0u;
+    data[offset++] = 0x01u; data[offset++] = 0x0Fu; data[offset++] = 0x04u;
+    data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u;
+    data[offset++] = 0x01u; data[offset++] = 0x01u; data[offset++] = 0x1Fu;
+    data[offset++] = 0xD0u; data[offset++] = 0x07u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u;
+    data[offset++] = 0x16u; data[offset++] = 0x00u; data[offset++] = 0x14u;
+    for (index = 0u; index < sizeof(program); index++) data[offset++] = program[index];
     data[offset++] = 0x00u;
     data[offset++] = 0x01u; data[offset++] = 0x03u; data[offset++] = 0x08u;
     data[offset++] = 0xE8u; data[offset++] = 0x03u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u; data[offset++] = 0x00u;
@@ -170,7 +178,9 @@ int main(void) {
     assert(review.input_count == 1u);
     assert(review.output_count == 1u);
     assert(review.total_output_sats == 1000u);
-    assert(review.fee_is_known == 0u);
+    assert(review.total_input_sats == 2000u);
+    assert(review.fee_is_known == 1u);
+    assert(review.fee_sats == 1000u);
     assert(strcmp(review.outputs[0].address, "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4") == 0);
     assert(psbt_validate_envelope(valid_psbt_v2, sizeof(valid_psbt_v2), &info) == PSBT_STATUS_OK);
     assert(info.version == PSBT_VERSION_V2);
